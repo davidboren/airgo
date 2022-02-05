@@ -1,0 +1,16 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Workflow
+metadata:
+  labels:
+    app: {{PROJECT_NAME}}-{{DAG_ID}}
+  generateName: {{PROJECT_NAME}}-{{DAG_ID}}- 
+  namespace: {{NAMESPACE}}
+spec:
+  serviceAccountName: argo-workflows
+  entrypoint: {{PROJECT_NAME}}-{{DAG_ID}}
+  arguments:
+    parameters:
+    - name: creationTimestampOverride
+      value: ''
+  templates: []
+  ttlSecondsAfterFinished: 21600

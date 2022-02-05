@@ -1,0 +1,20 @@
+container:
+  image: ${SET IMAGE HERE}
+  env:
+  - name: CREATION_TIMESTAMP
+    value: '{{workflow.creationTimestamp}}'
+  - name: CREATION_TIMESTAMP_OVERRIDE
+    value: '{{workflow.parameters.creationTimestampOverride}}'
+  - name: TASK_ID
+    value: '{{inputs.parameters.task-id}}'
+  - name: DAG_ID
+    value: '{{inputs.parameters.dag-id}}'
+  command: ["python", "-m", "airgo.dag_entrypoint"]
+metadata:
+  annotations:
+    iam.amazonaws.com/role: ${SET K8 ROLE HERE}
+  labels:
+    dag_id: '{{inputs.parameters.dag-id}}'
+    task_id: '{{inputs.parameters.task-id}}'
+inputs:
+  parameters: []
