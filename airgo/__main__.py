@@ -162,7 +162,6 @@ def init(project_name, namespace, overwrite, image_tag):
         "dag_traversal.py", "tests", "test_dag_traversal.py", overwrite=overwrite
     )
     copy_template("Dockerfile", None, overwrite=overwrite)
-    copy_template("Pipfile", None, overwrite=overwrite)
     if os.path.exists(config_path):
         config = get_full_config()
     else:
