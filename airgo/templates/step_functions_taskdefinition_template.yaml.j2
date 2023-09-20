@@ -1,0 +1,45 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Parameters:
+  Environment:
+    Type: 'String'
+    AllowedValues:
+      - sandbox
+      - stage
+      - prod
+  Image_Tag:
+    Type: 'String'
+
+Resources:
+    TaskDefinition:
+        Type: AWS::ECS::TaskDefinition
+        Properties:
+            Family: !Sub "${Environment}-{{PROJECT_NAME}}-{{TEMPLATE_NAME}}"
+            ExecutionRoleArn:
+                Fn::ImportValue:
+                    Fn::Sub: "${Environment}-{{PROJECT_NAME}}-TaskExecutionRole"
+            TaskRoleArn:
+                Fn::ImportValue:
+                    Fn::Sub: "${Environment}-{{PROJECT_NAME}}-TaskRole"
+            NetworkMode: "awsvpc"
+            RequiresCompatibilities: ["FARGATE"]
+            Cpu: '256'
+            Memory: '512'
+            ContainerDefinitions:
+            - Name: "task-container"
+                Image: !Sub ${SET IMAGE HERE}
+                Environment:
+                - Name: "PYTHONPATH"
+                    Value: "."
+                - Name: "ENV"
+                    Value: !Sub "${Environment}"
+                Essential: True
+                Command: ["python", "-m", "airgo.dag_entrypoint"]
+                Cpu: '256'
+                Memory: '512'
+                LogConfiguration:
+                LogDriver: "awslogs"
+                Options:
+                    awslogs-group: "firelens-container"
+                    awslogs-region: {{AWS_REGION}}
+                    awslogs-create-group: "true"
+                    awslogs-stream-prefix: "firelens"

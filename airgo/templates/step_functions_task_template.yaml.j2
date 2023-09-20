@@ -1,0 +1,22 @@
+Type: Task
+Resource: arn:aws:states:::ecs:runTask.sync
+InputPath: "$"
+Parameters:
+  Cluster: {{CLUSTER_ARN}} 
+  TaskDefinition: arn:aws:ecs:{{AWS_REGION}}:{{AWS_ID}}:task-definition/${Environment}-{{PROJECT_NAME}}-{{TEMPLATE_NAME}}
+  NetworkConfiguration:
+    AwsvpcConfiguration:
+      Subnets:
+      - {{SUBNET_ID}} 
+      SecurityGroups:
+      - {{SECURITY_GROUP_ID}} 
+      AssignPublicIp: DISABLED
+  CapacityProviderStrategy:
+  - CapacityProvider: FARGATE
+    Weight: 1
+  Overrides:
+    ContainerOverrides:
+    - Name: task-container
+      Environment:
+      - Name: TASK_TOKEN
+        Value.$: "$$.Task.Token"

@@ -1,0 +1,95 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Parameters:
+  Environment:
+    Type: "String"
+    AllowedValues:
+      - sandbox
+      - stage
+      - prod
+
+Resources:
+  DAGFailureNotificationTopic:
+    Type: AWS::SNS::Topic
+    Properties:
+      TopicName: !Sub "${Environment}-{{PROJECT_NAME}}-{{DAG_NAME}}-notification-topic"
+      Subscription:
+        - Endpoint: "index-alerts@exponentialexchange.com"
+          Protocol: "email"
+  TopicPolicy:
+    Type: AWS::SNS::TopicPolicy
+    DependsOn:
+      - DAGFailureNotificationTopic
+    Properties:
+      PolicyDocument:
+        Statement:
+          - Sid: AllowServices
+            Effect: Allow
+            Principal:
+              Service:
+                - events.amazonaws.com
+                - cloudwatch.amazonaws.com
+            Action: "sns:Publish"
+            Resource:
+              - !Ref DAGFailureNotificationTopic
+      Topics:
+        - !Ref DAGFailureNotificationTopic
+  # State Machine to orchestrate AWS Fargate Tasks ---
+  StateMachine:
+    Type: AWS::StepFunctions::StateMachine
+    Properties:
+      StateMachineName: !Sub "${Environment}-{{PROJECT_NAME}}-{{DAG_NAME}}-StateMachine"
+      RoleArn:
+        Fn::ImportValue:
+          Fn::Sub: "${Environment}-{{PROJECT_NAME}}-{{DAG_NAME}}-StateMachineRole"
+      DefinitionString: !Sub >
+        {{STATE_MACHINE_DEFINITION}}
+  ScheduledEventIAMRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub "${Environment}-{{PROJECT_NAME}}-{{DAG_NAME}}-statemachine"
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: "Allow"
+            Principal:
+              Service:
+                - Fn::Sub: "events.amazonaws.com"
+            Action:
+              - "sts:AssumeRole"
+      Policies:
+        - PolicyName: StateMachineExecutionPolicy
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: "Allow"
+                Action: "states:StartExecution"
+                Resource:
+                  - !Ref StateMachine
+  FailureEvent:
+    Type: AWS::Events::Rule
+    DependsOn:
+      - StateMachine
+    Properties:
+      Description: Publish Failure Even to Topic
+      Name: !Sub "${Environment}-{{PROJECT_NAME}}-{{DAG_NAME}}-failure-event-rule"
+      State: "ENABLED"
+      EventPattern:
+        detail-type:
+          - "Step Functions Execution Status Change"
+        detail:
+          status:
+            - "FAILED"
+            - "TIMED_OUT"
+          stateMachineArn: [!Ref StateMachine]
+          # Parse details out
+      Targets:
+        - Arn: !Ref DAGFailureNotificationTopic
+          Id: DAGFailureNotificationTopic
+          InputTransformer:
+            InputPathsMap:
+              "time": "$.time"
+            InputTemplate: |
+              {
+                "Description": "Execution Failure Notice: The {{PROJECT_NAME}}-{{DAG_NAME}} StateMachine has failed",
+                "Execution Time": <time> 
+              }
