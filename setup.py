@@ -27,7 +27,7 @@ config = {
             "snowflake-sqlalchemy",
         ],
         "dropbox": ["snowflake-connector-python", "pandas", "dropbox"],
-        "aws": ["boto3"],
+        "aws": ["boto3", "cfn-tools"],
     },
     "packages": find_packages(exclude=("tests", "docs")),
     "package_data": {"airgo": ["templates/*", "bin/*", "py.typed"]},

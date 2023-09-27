@@ -1,9 +1,10 @@
-from airgo import DAG
+from unittest import mock
+from airgo.dag import DAG
 from airgo.exceptions import AirgoException
 import pytest
 
 
-def test_bad_dag_id(default_args):
+def test_bad_dag_id(mock_get_project_config, default_args):
     with pytest.raises(AirgoException):
         DAG(
             dag_id="BAD_NAME_WITH_UNDERSCORES",
@@ -19,7 +20,9 @@ def test_bad_dag_id(default_args):
     )
 
 
-def test_duplicate_ids(task_registration_op, example_dag, default_args):
+def test_duplicate_ids(
+    mock_get_project_config, task_registration_op, example_dag, default_args
+):
     with pytest.raises(AirgoException):
         DAG(
             dag_id=example_dag.dag_id,
@@ -32,7 +35,7 @@ def test_duplicate_ids(task_registration_op, example_dag, default_args):
         task_registration_op(task_id="task-1", dag=example_dag)
 
 
-def test_cycle_break(task_registration_op, example_dag):
+def test_cycle_break(mock_get_project_config, task_registration_op, example_dag):
     task_1 = task_registration_op(task_id="task-1", dag=example_dag)
     task_2 = task_registration_op(task_id="task-2", dag=example_dag)
     task_3 = task_registration_op(task_id="task-3", dag=example_dag)
@@ -50,7 +53,7 @@ def test_cycle_break(task_registration_op, example_dag):
     assert set(["task-3"]) == set([t.task_id for t in task_2.downstream_tasks])
 
 
-def test_execution(task_registration_op, example_dag):
+def test_execution(mock_get_project_config, task_registration_op, example_dag):
     initial_tasks = [
         task_registration_op(task_id=f"task-{i}", dag=example_dag) for i in range(50)
     ]

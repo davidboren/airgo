@@ -81,7 +81,6 @@ Resources:
             - "FAILED"
             - "TIMED_OUT"
           stateMachineArn: [!Ref StateMachine]
-          # Parse details out
       Targets:
         - Arn: !Ref DAGFailureNotificationTopic
           Id: DAGFailureNotificationTopic

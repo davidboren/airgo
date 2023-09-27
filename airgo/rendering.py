@@ -5,7 +5,9 @@ import os
 from importlib.machinery import SourceFileLoader
 from airgo.dag import DAG, yaml
 from airgo.dag_to_state_machine import convert_dag_to_state_machine
-from airgo.templates import get_configuration_template
+from airgo.utils.traversal import (
+    get_configuration_template,
+)
 
 
 def traverse_dags_folder(
@@ -66,7 +68,8 @@ def render_argo_workflows(project_config, dags, rendered_yamls_dir):
             "---\n".join(
                 [
                     yaml.dump(
-                        scheduled_dags[dag_id].cron_workflow, default_flow_style=False
+                        scheduled_dags[dag_id].argo_cron_workflow,
+                        default_flow_style=False,
                     )
                     for dag_id in sorted(scheduled_dags.keys())
                 ]
@@ -85,7 +88,10 @@ def render_argo_workflows(project_config, dags, rendered_yamls_dir):
 
 
 def render_step_function_workflows(
-    project_config: Dict[str, str], dags: Dict[str, DAG], rendered_yamls_dir: str, templates_dir: str
+    project_config: Dict[str, str],
+    dags: Dict[str, DAG],
+    rendered_yamls_dir: str,
+    templates_dir: str,
 ):
     for dag in dags.values():
         convert_dag_to_state_machine(dag)
@@ -95,21 +101,28 @@ def render_step_function_workflows(
         with open(
             os.path.join(rendered_yamls_dir, "manual_workflows", f"{dag_id}.yaml"), "w"
         ) as f:
-            yaml.dump(dag.state_machine, f, default_flow_style=False)
+            yaml.dump(
+                dag.state_machine, f, default_flow_style=False, allow_unicode=True
+            )
     for dag_id, dag in scheduled_dags.items():
         with open(
             os.path.join(rendered_yamls_dir, "scheduled_workflows", f"{dag_id}.yaml"),
             "w",
         ) as f:
-            yaml.dump(dag.state_machine, f, default_flow_style=False)
+            yaml.dump(
+                dag.state_machine, f, default_flow_style=False, allow_unicode=True
+            )
 
-    get_configuration_template("step_functions_roles_template.yaml.j2").render(
-        PROJECT_NAME=project_config["project_name"],
-        AWS_REGION=project_config["aws_region"],
-        AWS_ID=project_config["aws_id"],
-    ),
+    roles = yaml.load(
+        get_configuration_template("step_functions_roles_template.yaml.j2").render(
+            PROJECT_NAME=project_config["project_name"],
+            AWS_REGION=project_config["aws_region"],
+            AWS_ID=project_config["aws_id"],
+        ),
+        Loader=yaml.BaseLoader,
+    )
     with open(os.path.join(rendered_yamls_dir, f"roles.yaml"), "w") as f:
-        yaml.dump(dag.state_machine, f, default_flow_style=False)
+        yaml.dump(roles, f, default_flow_style=False, allow_unicode=True)
 
     for template_filename in os.listdir(templates_dir):
         if template_filename.endswith("yaml.j2"):
@@ -119,4 +132,6 @@ def render_step_function_workflows(
                 AWS_ID=project_config["aws_id"],
             ),
             with open(os.path.join(rendered_yamls_dir, f"roles.yaml"), "w") as f:
-                yaml.dump(dag.state_machine, f, default_flow_style=False)
+                yaml.dump(
+                    dag.state_machine, f, default_flow_style=False, allow_unicode=True
+                )

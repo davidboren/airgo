@@ -4,9 +4,11 @@ import os
 
 
 @pytest.fixture(scope="function")
-def initialized_project(run_raise, init_command, temp_project):
-    run_raise(init_command, temp_project)
-    return temp_project
+def initialized_project(
+    mock_get_temp_project_root, run_raise, init_command, temp_project_dir
+):
+    run_raise(init_command, temp_project_dir)
+    return temp_project_dir
 
 
 def test_init(initialized_project):
@@ -24,11 +26,58 @@ def test_rendering(rendered_project):
     assert os.path.exists(rendered_project)
 
 
-# def test_backfill(rendered_project, airgo_command, image_tag, is_circle, run_raise):
-#     if not is_circle:
-#         run_raise(["pipenv", "lock"], rendered_project)
-#         run_raise(["docker", "build", "--build-arg", f"GITHUB_OAUTH_TOKEN={os.getenv('GITHUB_OAUTH_TOKEN')}", "-t", image_tag, "."], rendered_project)
-#         run_raise(["docker", "push", image_tag], rendered_project)
-#         backfill_command = airgo_command + ['backfill', '--dag-id', 'hello-world', '--start-date', '"{}"'.format(dt.datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S'))]
-#         run_raise(backfill_command, rendered_project)
-#         run_raise(airgo_command + ['watch', 'hello-world'], rendered_project)
+@pytest.fixture(scope="function")
+def initialized_stepfunction_project(
+    mock_get_temp_project_root,
+    run_raise,
+    init_stepfunction_command,
+    temp_project_dir,
+):
+    run_raise(init_stepfunction_command, temp_project_dir)
+    return temp_project_dir
+
+
+@pytest.fixture(scope="function")
+def rendered_stepfunction_project(
+    initialized_stepfunction_project, render_command, run_raise
+):
+    run_raise(render_command, initialized_stepfunction_project)
+    return initialized_stepfunction_project
+
+
+def test_stepfunction_init(initialized_stepfunction_project):
+    dags_dict = traverse_dags_folder(
+        os.path.join(initialized_stepfunction_project, "dags")
+    )
+    assert "hello-world" in dags_dict
+
+
+def test_stepfunction_rendering(
+    initialized_stepfunction_project,
+):
+    from airgo.rendering import render_step_function_workflows
+    from airgo.utils.traversal import get_project_config
+
+    dag_dict = traverse_dags_folder(
+        os.path.join(initialized_stepfunction_project, "dags")
+    )
+
+    rendered_yamls_dir = os.path.join(
+        initialized_stepfunction_project, "airgo", "rendered_yamls"
+    )
+    render_step_function_workflows(
+        project_config=get_project_config(),
+        dags=dag_dict,
+        rendered_yamls_dir=rendered_yamls_dir,
+        templates_dir=os.path.join(
+            initialized_stepfunction_project, "airgo", "templates"
+        ),
+    )
+    for k in dag_dict:
+        assert os.path.exists(
+            os.path.join(rendered_yamls_dir, "scheduled_workflows", k + ".yaml")
+        )
+
+
+def test_stepfunction_rendering_command(rendered_stepfunction_project):
+    assert os.path.exists(rendered_stepfunction_project)

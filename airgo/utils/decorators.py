@@ -74,7 +74,7 @@ def artifact_property(serializer: Callable = json_list_serializer):
             self.logger.info(f"Getting Result for artifact `{func.__qualname__}`")
             res = func(self)
             property_name = self.__class__.qualname_to_property(func.__qualname__)
-            if self.dag.project_config.project_type == "argo":
+            if self.dag.project_type == "argo":
                 artifact_dir = self.get_artifact_dir()
                 if not os.path.exists(artifact_dir):
                     self.logger.info(f"Creating artifact directory `{artifact_dir}`")

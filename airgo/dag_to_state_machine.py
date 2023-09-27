@@ -121,7 +121,7 @@ def convert_dag_to_state_machine(dag: DAG):
     finish_op = FinishSMOperator(dag=dag)
 
     tasks_by_tree_depth = dag.task_by_tree_depth
-    for task in dag.tasks.values():
+    for task in dag.tasks:
         task.clear_relatives()
     i = 0
     last_node = apply_defaults_op
@@ -134,7 +134,6 @@ def convert_dag_to_state_machine(dag: DAG):
             )
         n.set_upstream(last_node)
         last_node = n
-        n.set_upstream(last_node)
         if n.has_short_circuit:
             if len(tasks_by_tree_depth[i]) > 1:
                 n = ParallelShortCircuitMergeSMOperator(
@@ -148,10 +147,10 @@ def convert_dag_to_state_machine(dag: DAG):
 
     for task in tasks_by_tree_depth[i - 1]:
         n.set_downstream(finish_op)
-    final_nodes = [v for v in dag.tasks.values() if len(v.downstream_task_ids) == 0]
-    initial_nodes = [v for v in dag.tasks.values() if len(v.upstream_task_ids) == 0]
-    for n in initial_nodes:
-        n.set_upstream(apply_defaults_op)
-    for n in final_nodes:
-        n.set_downstream(finish_op)
+    # final_nodes = [v for v in dag.tasks.values() if len(v.downstream_task_ids) == 0]
+    # initial_nodes = [v for v in dag.tasks.values() if len(v.upstream_task_ids) == 0]
+    # for n in initial_nodes:
+    #     n.set_upstream(apply_defaults_op)
+    # for n in final_nodes:
+    #     n.set_downstream(finish_op)
     return dag

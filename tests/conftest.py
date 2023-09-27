@@ -2,6 +2,8 @@ import pytest
 import os
 import subprocess
 
+from typing import Dict
+from unittest import mock
 from tempfile import TemporaryDirectory
 
 from airgo import DAG
@@ -22,6 +24,17 @@ def default_args():
         "limits_cpu": "20Mi",
         "limits_memory": "20m",
     }
+
+
+## Mock get_full_config function return value
+@pytest.fixture(scope="function")
+def mock_get_project_config():
+    full_config = {
+        "project_name": "test-project",
+        "project_type": "argo",
+    }
+    with mock.patch("airgo.dag.get_project_config", return_value=full_config):
+        yield full_config
 
 
 @pytest.fixture(scope="function")
@@ -47,13 +60,41 @@ def airgo_command(is_ci):
 
 
 @pytest.fixture(scope="function")
-def init_command(airgo_command, test_project_name, image_tag):
+def docker_repo():
+    return "dboren/argo"
+
+
+@pytest.fixture(scope="function")
+def init_command(airgo_command, test_project_name, docker_repo):
     return airgo_command + [
         "init",
         "--project-name",
         test_project_name,
-        "--image-tag",
-        image_tag,
+        "--project-type",
+        "argo",
+        "--docker-repo",
+        docker_repo,
+    ]
+
+
+@pytest.fixture(scope="function")
+def init_stepfunction_command(airgo_command, test_project_name, docker_repo):
+    return airgo_command + [
+        "init",
+        "--project-name",
+        test_project_name,
+        "--project-type",
+        "step-functions",
+        "--docker-repo",
+        docker_repo,
+        "--aws-subnet-id",
+        "subnet-1234",
+        "--aws-security-group",
+        "sg-1234",
+        "--aws-id",
+        "1234",
+        "--aws-region",
+        "us-east-1234",
     ]
 
 
@@ -64,12 +105,12 @@ def render_command(airgo_command):
 
 @pytest.fixture(scope="function")
 def image_tag():
-    return "dboren/argo:latest"
+    return "latest"
 
 
 @pytest.fixture(scope="function")
-def build_command(image_tag):
-    return ["docker", "build", "-t", image_tag]
+def build_command(docker_repo):
+    return ["docker", "build", "-t", f"{docker_repo}:{image_tag}"]
 
 
 @pytest.fixture(scope="function")
@@ -92,17 +133,26 @@ def run_raise():
 
 @pytest.fixture(scope="function")
 def minikube_context(run_raise, is_ci):
-    if not is_ci:
-        return run_raise(
-            ["kubectl", "uses-context", "minikube-argo-events"], cwd=os.getcwd()
-        )
+    pass
+    # if not is_ci:
+    #     return run_raise(
+    #         ["kubectl", "uses-context", "minikube-argo-events"], cwd=os.getcwd()
+    #     )
 
 
 @pytest.fixture(scope="function")
-def temp_project(init_command, image_tag, is_ci, run_raise, minikube_context):
+def temp_project_dir(init_command, image_tag, is_ci, run_raise, minikube_context):
     with TemporaryDirectory() as temp_dir:
-        run_raise(init_command, temp_dir)
         yield temp_dir
+
+
+## Mock get_full_config function return value
+@pytest.fixture(scope="function")
+def mock_get_temp_project_root(temp_project_dir):
+    with mock.patch(
+        "airgo.utils.traversal.get_root_dir", return_value=temp_project_dir
+    ) as m:
+        yield m
 
 
 @pytest.fixture(scope="function")

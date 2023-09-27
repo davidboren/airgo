@@ -1,4 +1,4 @@
-from airgo.utils.traversal import get_project_config, config_path, get_full_config
+from airgo.utils.traversal import get_project_config, get_config_path, get_full_config
 from airgo.exceptions import AirgoException
 from airgo.rendering import (
     traverse_dags_folder,
@@ -126,24 +126,19 @@ def main():
     is_flag=True,
     help="Whether to overwrite existing files. Defaults to False",
 )
-@click.option(
-    "--image-tag",
-    default="${IMAGE_TAG}",
-    help="Image tag to use in default container template.  Defaults to '${IMAGE_TAG}', which must be set later.",
-)
 @click.option("--project-type", default="argo", help="Either argo or step-functions")
 @click.option(
-    "--docker_repo",
+    "--docker-repo",
     default="",
     help="Repository for docker image.  Defaults to empty string.",
 )
 @click.option(
-    "--subnet-id",
+    "--aws-subnet-id",
     default="",
     help="Subnet ID to use for Step Functions.  Defaults to empty string.",
 )
 @click.option(
-    "--security-group",
+    "--aws-security-group",
     default="",
     help="Security Group to use for Step Functions.  Defaults to empty string.",
 )
@@ -157,6 +152,11 @@ def main():
     default="",
     help="AWS Region to use for Step Functions.  Defaults to empty string.",
 )
+@click.option(
+    "--aws-ecs-cluster-arn",
+    default="",
+    help="AWS ECS Cluster to use for Step Functions.  Defaults to empty string.",
+)
 def init(
     project_name,
     namespace,
@@ -167,6 +167,7 @@ def init(
     aws_region,
     aws_subnet_id,
     aws_security_group,
+    aws_ecs_cluster_arn,
 ):
     """
     Inits airgo directory with init (with project_name specification) and templates,
@@ -178,12 +179,13 @@ def init(
     make_if_not(os.path.join(templates_dir, "configuration"))
     make_if_not(rendered_yamls_dir)
     make_if_not(os.path.join(rendered_yamls_dir, "manual_workflows"))
+    make_if_not(os.path.join(rendered_yamls_dir, "scheduled_workflows"))
     make_if_not(os.path.join(rendered_yamls_dir, "backfill_workflows"))
     make_if_not(dags_dir)
     make_if_not(tests_dir)
     if project_type == "argo":
         with open(
-            os.path.join(script_dir, "templates", "argo_default_template.j2"), "r"
+            os.path.join(script_dir, "templates", "argo_default_template.yaml.j2"), "r"
         ) as f:
             default_container = f.read()
         if docker_repo:
@@ -226,7 +228,7 @@ def init(
                 airgo_dir,
                 "templates",
                 "containers",
-                "default_template.j2",
+                "default_template.yaml.j2",
             ),
             "w",
         ) as f:
@@ -241,6 +243,16 @@ def init(
             os.path.join("airgo", "templates", "configuration"),
             overwrite=overwrite,
         )
+        copy_template(
+            "step_functions_roles_template.yaml.j2",
+            os.path.join("airgo", "templates", "configuration"),
+            overwrite=overwrite,
+        )
+        copy_template(
+            "step_functions_stepfunction_template.yaml.j2",
+            os.path.join("airgo", "templates", "configuration"),
+            overwrite=overwrite,
+        )
     else:
         raise AirgoException(
             f"Project type '{project_type}' not recognized.  Must be either 'argo' or 'step-functions'"
@@ -250,7 +262,7 @@ def init(
         "dag_traversal.py", "tests", "test_dag_traversal.py", overwrite=overwrite
     )
     copy_template("Dockerfile", None, overwrite=overwrite)
-    if os.path.exists(config_path):
+    if os.path.exists(get_config_path()):
         config = get_full_config()
     else:
         config = configparser.ConfigParser()
@@ -270,8 +282,9 @@ def init(
             "aws_region": aws_region,
             "aws_security_group": aws_security_group,
             "aws_subnet_id": aws_subnet_id,
+            "aws_ecs_cluster_arn": aws_ecs_cluster_arn,
         }
-    with open(config_path, "w") as configfile:
+    with open(get_config_path(), "w") as configfile:
         config.write(configfile)
 
 

@@ -5,7 +5,7 @@ def short_circuit():
     return True
 
 
-def test_short_circuit(task_registration_op, example_dag):
+def test_short_circuit(mock_get_project_config, task_registration_op, example_dag):
     task_1 = task_registration_op(task_id="task-1", dag=example_dag)
     task_2 = ShortCircuitPythonOperator(
         task_id="task-2", dag=example_dag, python_callable=short_circuit

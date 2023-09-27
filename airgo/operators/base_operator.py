@@ -2,6 +2,7 @@ import logging
 import json
 import hashlib
 import os
+import yaml
 
 from typing import Dict, List, Optional, Set, Any, Union, Iterable, Sequence
 from cached_property import cached_property  # type: ignore
@@ -87,14 +88,14 @@ class BaseOperator:
         downstream_operators: None = None,
         hard_disk_path: Union[None, str] = None,
     ) -> None:
+        self.dag = dag
         self.requests_cpu = requests_cpu
         self.requests_memory = requests_memory
         self.limits_cpu = limits_cpu
         self.limits_memory = limits_memory
         self.retries = retries
         self.task_id = task_id
-        self.template = k8_str_filter(template)
-        self.dag = dag
+        self.template = k8_str_filter(template, dag.project_type)
         self.upstream_tasks: List[BaseOperator] = []
         self.downstream_tasks: List[BaseOperator] = []
         self.hard_disk_path = hard_disk_path
@@ -106,7 +107,7 @@ class BaseOperator:
         self.parameters = (
             {}
             if parameters is None
-            else {k8_str_filter(p): v for p, v in parameters.items()}
+            else {k8_str_filter(p, dag.project_type): v for p, v in parameters.items()}
         )
 
     @property
@@ -153,7 +154,7 @@ class BaseOperator:
     @parameters.setter
     def parameters(self, parameters: Dict[str, Any]) -> None:
         for k in parameters.keys():
-            k8_str_test(k, "parameters")
+            k8_str_test(k, "parameters", self.dag.project_type)
         self._parameters = parameters
 
     @property
@@ -166,7 +167,7 @@ class BaseOperator:
 
     @template.setter
     def template(self, template: str) -> None:
-        k8_str_test(template, "template")
+        k8_str_test(template, "template", self.dag.project_type)
         self._template = template
 
     @property
@@ -180,7 +181,7 @@ class BaseOperator:
                 f"Your task_id must be a string, not {type(task_id)}"
             )
 
-        k8_str_test(task_id, "task_id")
+        k8_str_test(task_id, "task_id", self.dag.project_type)
         self._task_id = task_id
 
     @property
@@ -305,7 +306,7 @@ class BaseOperator:
                     task.set_upstream(self)
 
     def clear_relatives(self):
-        for task in self.downstreak_tasks:
+        for task in self.downstream_tasks:
             task.upstream_tasks.remove(self)
         for task in self.upstream_tasks:
             task.downstream_tasks.remove(self)
@@ -356,7 +357,9 @@ class BaseOperator:
 
     @property
     def filtered_default_parameters(self) -> List[str]:
-        return [k8_str_filter(el) for el in self.default_parameters]
+        return [
+            k8_str_filter(el, self.dag.project_type) for el in self.default_parameters
+        ]
 
     @property
     def has_short_circuit(self):
@@ -500,12 +503,17 @@ class BaseOperator:
         template = get_configuration_template(
             "step_functions_task_template.yaml.j2"
         ).render(
-            CLUSTER_ARN=self.dag.ecs_cluster_arn,
+            CLUSTER_ARN=self.dag.aws_ecs_cluster_arn,
+            PROJECT_NAME=self.dag.project_name,
             AWS_REGION=self.dag.aws_region,
             AWS_ID=self.dag.aws_id,
-            SUBNET_ID=self.dag.subnet_id,
-            SECURITY_GROUP_ID=self.dag.security_group_id,
+            SUBNET_ID=self.dag.aws_subnet_id,
+            SECURITY_GROUP=self.dag.aws_security_group,
             TEMPLATE_NAME=self.template,
+        )
+        template = yaml.load(
+            template,
+            Loader=yaml.BaseLoader,
         )
         if self.dag.state_machine_default_inputs:
             template["Parameters"]["Overrides"]["Cpu"] = self.limits_cpu
@@ -536,6 +544,7 @@ class BaseOperator:
             template["ResultPath"] = "$.artifacts"
         else:
             template["ResultPath"] = "null"
+        return template
 
     def should_execute(self, execution_set: Dict[str, Set[str]]) -> bool:
         upstream_shorted = self.get_all_relative_ids(upstream=True).intersection(
@@ -563,7 +572,7 @@ class BaseOperator:
         res = {}
         for property_name in self.artifact_properties:
             res[property_name] = getattr(self, property_name)
-        if self.dag.project_config.project_type == "step-functions":
+        if self.dag.project_type == "step-functions":
             import boto3
 
             client = boto3.client("stepfunctions")

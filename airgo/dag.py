@@ -3,6 +3,7 @@ from typing import Optional, List, Dict, Any, Union, Tuple
 from collections import deque, defaultdict
 from cached_property import cached_property  # type: ignore
 from copy import deepcopy
+import json
 import datetime as dt
 import yaml
 import os
@@ -121,7 +122,7 @@ class DAG:
                 f"Your dag_id must be a string, not {type(dag_id)}"
             )
 
-        k8_str_test(dag_id, "dag_id")
+        k8_str_test(dag_id, "dag_id", self.project_type)
         self._dag_id = dag_id
 
     def add_task(self, task: BaseOperator) -> None:
@@ -148,7 +149,7 @@ class DAG:
 
     @property
     def task_by_tree_depth(self) -> Dict[str, int]:
-        initial_nodes = [v for v in self.tasks.values() if len(v.upstream_tasks) == 0]
+        initial_nodes = [v for v in self.tasks if len(v.upstream_tasks) == 0]
         queue = deque()
         queue.extend([(n, 0) for n in initial_nodes])
         traversed_nodes = set()
@@ -159,7 +160,7 @@ class DAG:
                 tasks_by_depth[depth].append(node)
                 traversed_nodes.add(node.task_id)
             for child in node.downstream_tasks:
-                queue.append((self.tasks[child], depth + 1))
+                queue.append((child, depth + 1))
         return tasks_by_depth
 
     @classmethod
@@ -230,8 +231,8 @@ class DAG:
         return self.project_config["aws_subnet_id"]
 
     @property
-    def aws_security_group_id(self):
-        return self.project_config["aws_security_group_id"]
+    def aws_security_group(self):
+        return self.project_config["aws_security_group"]
 
     @property
     def aws_ecs_cluster_arn(self):
@@ -255,7 +256,7 @@ class DAG:
         return sorted(set([k for task in self.tasks for k in task.volumes.keys()]))
 
     @property
-    def workflow(self):
+    def argo_workflow(self):
         dag_id = self.dag_id
         workflow = yaml.load(
             get_configuration_template("argo_workflow.yaml.j2").render(
@@ -267,10 +268,10 @@ class DAG:
         return workflow
 
     @property
-    def cron_workflow(self) -> Dict[str, Any]:
+    def argo_cron_workflow(self) -> Dict[str, Any]:
         dag_id = self.dag_id
         workflow = yaml.load(
-            get_configuration_template("argo_cron_workflow.j2").render(
+            get_configuration_template("argo_cron_workflow.yaml.j2").render(
                 PROJECT_NAME=self.project_name,
                 NAMESPACE=self.namespace,
                 DAG_ID=dag_id,
@@ -301,10 +302,12 @@ class DAG:
 
     @property
     def state_machine_definition(self):
-        return {
-            "StartsAt": "__DEFINE_DEFAULTS",
-            "States": {task.task_id: task.to_sf_dict() for task in self.tasks},
-        }
+        return json.dumps(
+            {
+                "StartsAt": "__DEFINE_DEFAULTS",
+                "States": {task.task_id: task.to_sf_dict() for task in self.tasks},
+            }
+        )
 
     def get_schedule_event_rule(self, cron_schedule):
         return {
@@ -326,7 +329,11 @@ class DAG:
     @property
     def state_machine_schedule_events(self):
         if isinstance(self.schedule_interval, str):
-            return {self.get_schedule_event_rule(self.schedule_interval)}
+            return {
+                f"ScheduleEventRule1": self.get_schedule_event_rule(
+                    self.schedule_interval
+                )
+            }
         elif isinstance(self.schedule_interval, list):
             return {
                 f"ScheduleEventRule{i+1}": self.get_schedule_event_rule(cron)
@@ -343,10 +350,11 @@ class DAG:
                 DAG_NAME=self.dag_id,
                 STATE_MACHINE_DEFINITION=self.state_machine_definition,
             ),
-            Loader=yaml.FullLoader,
+            Loader=yaml.BaseLoader,
         )
         if self.schedule_interval:
             state_machine["Resources"].update(**self.state_machine_schedule_events)
+        return state_machine
 
     @property
     def default_context(self) -> Dict[str, dt.datetime]:
