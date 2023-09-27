@@ -109,8 +109,8 @@ Resources:
                 - iam:GetRole
                 - iam:PassRole
                 Resource:
-                - !GetAtt [TaskRole, "Arn"]
-                - !GetAtt [TaskExecutionRole, "Arn"]
+                - Fn::GetAtt: [TaskRole, "Arn"]
+                - Fn::GetAtt: [TaskExecutionRole, "Arn"]
               - Effect: Allow
                 Action:
                 - logs:CreateLogDelivery
@@ -126,19 +126,22 @@ Resources:
 Outputs:
   TaskExecutionRole:
     Description: The TaskExecutionRole used for running the fargate tasks defined in this repo
-    Value: !GetAtt [TaskExecutionRole, "Arn"]
+    Value:
+      Fn::GetAtt: [TaskExecutionRole, "Arn"]
     Export:
       Name:
         Fn::Sub: "${AWS::StackName}-TaskExecutionRole"
   TaskRole:
     Description: The TaskRole used for starting up (secret access, etc) the fargate tasks defined in this repo
-    Value: !GetAtt [TaskRole, "Arn"]
+    Value:
+      Fn::GetAtt: [TaskRole, "Arn"]
     Export:
       Name:
         Fn::Sub: "${AWS::StackName}-TaskRole"
   StateMachineRole:
     Description: The StateMachineRole used for running the statemachines definied in this repo
-    Value: !GetAtt [StateMachineIAMRole, "Arn"]
+    Value:
+      Fn::GetAtt: [StateMachineIAMRole, "Arn"]
     Export:
       Name:
         Fn::Sub: "${AWS::StackName}-StateMachineRole"

@@ -119,7 +119,7 @@ def render_step_function_workflows(
             AWS_REGION=project_config["aws_region"],
             AWS_ID=project_config["aws_id"],
         ),
-        Loader=yaml.BaseLoader,
+        Loader=yaml.FullLoader,
     )
     with open(os.path.join(rendered_yamls_dir, f"roles.yaml"), "w") as f:
         yaml.dump(roles, f, default_flow_style=False, allow_unicode=True)

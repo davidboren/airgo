@@ -515,7 +515,7 @@ class BaseOperator:
         )
         template = yaml.load(
             template,
-            Loader=yaml.BaseLoader,
+            Loader=yaml.FullLoader,
         )
         if self.dag.state_machine_default_inputs:
             template["Parameters"]["Overrides"]["Cpu"] = self.limits_cpu

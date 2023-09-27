@@ -350,7 +350,7 @@ class DAG:
                 DAG_NAME=self.dag_id,
                 STATE_MACHINE_DEFINITION=self.state_machine_definition,
             ),
-            Loader=yaml.BaseLoader,
+            Loader=yaml.FullLoader,
         )
         if self.schedule_interval:
             state_machine["Resources"].update(**self.state_machine_schedule_events)
