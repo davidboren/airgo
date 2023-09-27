@@ -545,7 +545,7 @@ class BaseOperator:
         if self.artifact_properties:
             template["ResultPath"] = "$.artifacts"
         else:
-            template["ResultPath"] = "null"
+            template["ResultPath"] = None
         return template
 
     def should_execute(self, execution_set: Dict[str, Set[str]]) -> bool:
