@@ -75,6 +75,7 @@ class DAG:
         start_date: Union[str, dt.datetime, None] = None,
         max_active_runs: Optional[int] = None,
         state_machine_default_inputs: Optional[Dict[str, Any]] = None,
+        state_machine_email_notification_on_failure: Optional[str] = None,
     ) -> None:
         self.dag_id = dag_id
         if self.dag_id in DAG.REGISTERED_DAGS:
@@ -98,6 +99,9 @@ class DAG:
         self.tasks: List[BaseOperator] = []
         self.max_active_runs = max_active_runs
         self.state_machine_default_inputs = state_machine_default_inputs or {}
+        self.state_machine_email_notification_on_failure = (
+            state_machine_email_notification_on_failure
+        )
 
     @property
     def concurrency_policy(self) -> str:
@@ -354,6 +358,11 @@ class DAG:
         )
         if self.schedule_interval:
             state_machine["Resources"].update(**self.state_machine_schedule_events)
+        if self.state_machine_email_notification_on_failure:
+            state_machine["DAGFailureNotificationTopic"]["Subscription"] = {
+                "Protocol": "email",
+                "Endpoint": self.state_machine_email_notification_on_failure,
+            }
         return state_machine
 
     @property

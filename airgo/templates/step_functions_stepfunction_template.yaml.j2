@@ -13,9 +13,6 @@ Resources:
     Properties:
       TopicName:
         Fn::Sub: "${Environment}-{{PROJECT_NAME}}-{{DAG_NAME}}-notification-topic"
-      Subscription:
-        - Endpoint: "index-alerts@exponentialexchange.com"
-          Protocol: "email"
   TopicPolicy:
     Type: AWS::SNS::TopicPolicy
     DependsOn:
