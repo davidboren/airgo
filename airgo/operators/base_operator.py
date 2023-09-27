@@ -310,6 +310,8 @@ class BaseOperator:
             task.upstream_tasks.remove(self)
         for task in self.upstream_tasks:
             task.downstream_tasks.remove(self)
+        self.downstream_tasks = []
+        self.upstream_tasks = []
 
     def get_all_relative_ids(self, upstream: bool = True) -> Set[str]:
         deps = self.upstream_tasks if upstream else self.downstream_tasks
