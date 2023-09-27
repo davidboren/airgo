@@ -137,6 +137,8 @@ def convert_dag_to_state_machine(dag: DAG):
             n = ParallelSMOperator(
                 dag=dag, task_id=f"__PARALLEL_{i}", tasks=tasks_by_tree_depth[i]
             )
+            for task in tasks_by_tree_depth[i]:
+                dag.tasks.remove(task)
         if last_node:
             n.set_upstream(last_node)
         last_node = n
