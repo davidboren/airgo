@@ -11,7 +11,8 @@ Resources:
   DAGFailureNotificationTopic:
     Type: AWS::SNS::Topic
     Properties:
-      TopicName: !Sub "${Environment}-{{PROJECT_NAME}}-{{DAG_NAME}}-notification-topic"
+      TopicName:
+        Fn::Sub: "${Environment}-{{PROJECT_NAME}}-{{DAG_NAME}}-notification-topic"
       Subscription:
         - Endpoint: "index-alerts@exponentialexchange.com"
           Protocol: "email"
@@ -37,16 +38,18 @@ Resources:
   StateMachine:
     Type: AWS::StepFunctions::StateMachine
     Properties:
-      StateMachineName: !Sub "${Environment}-{{PROJECT_NAME}}-{{DAG_NAME}}-StateMachine"
+      StateMachineName:
+        Fn::Sub: "${Environment}-{{PROJECT_NAME}}-{{DAG_NAME}}-StateMachine"
       RoleArn:
         Fn::ImportValue:
           Fn::Sub: "${Environment}-{{PROJECT_NAME}}-{{DAG_NAME}}-StateMachineRole"
-      DefinitionString: !Sub >
-        {{STATE_MACHINE_DEFINITION}}
+      DefinitionString:
+        Fn::Sub: {{STATE_MACHINE_DEFINITION}}
   ScheduledEventIAMRole:
     Type: AWS::IAM::Role
     Properties:
-      RoleName: !Sub "${Environment}-{{PROJECT_NAME}}-{{DAG_NAME}}-statemachine"
+      RoleName:
+        Fn::Sub: "${Environment}-{{PROJECT_NAME}}-{{DAG_NAME}}-statemachine"
       AssumeRolePolicyDocument:
         Version: "2012-10-17"
         Statement:
@@ -71,7 +74,8 @@ Resources:
       - StateMachine
     Properties:
       Description: Publish Failure Even to Topic
-      Name: !Sub "${Environment}-{{PROJECT_NAME}}-{{DAG_NAME}}-failure-event-rule"
+      Name:
+        Fn::Sub: "${Environment}-{{PROJECT_NAME}}-{{DAG_NAME}}-failure-event-rule"
       State: "ENABLED"
       EventPattern:
         detail-type:

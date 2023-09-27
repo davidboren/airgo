@@ -31,7 +31,8 @@ Resources:
                 - "states:SendTaskSuccess"
                 Resource: "arn:aws:states:*:*:stateMachine:*"
                 Effect: Allow
-      RoleName: !Sub "${Environment}-{{PROJECT_NAME}}-task"
+      RoleName: 
+        Fn::Sub: "${Environment}-{{PROJECT_NAME}}-task"
 
   TaskExecutionRole:
     Type: "AWS::IAM::Role"
@@ -62,7 +63,8 @@ Resources:
                 - logs:DescribeLogStreams
                 Resource:
                 - arn:aws:logs:*:*:*
-      RoleName: !Sub "${Environment}-{{PROJECT_NAME}}-execution"
+      RoleName: 
+        Fn::Sub: "${Environment}-{{PROJECT_NAME}}-execution"
   StateMachineIAMRole:
     Type: AWS::IAM::Role
     Properties:

@@ -113,12 +113,17 @@ class ParallelShortCircuitMergeSMOperator(BaseOperator):
 
 
 def convert_dag_to_state_machine(dag: DAG):
+    initial_tasks = [t for t in dag.tasks if not t.upstream_tasks]
+    final_tasks = [t for t in dag.tasks if not t.downstream_tasks]
     default_op = DefineDefaultsSMOperator(
         dag=dag, default_dict=dag.state_machine_default_inputs
     )
     apply_defaults_op = ApplyDefaultsSMOperator(dag=dag)
     default_op.set_downstream(apply_defaults_op)
+    apply_defaults_op.set_downstream(initial_tasks)
     finish_op = FinishSMOperator(dag=dag)
+    for t in final_tasks:
+        t.set_downstream(finish_op)
 
     tasks_by_tree_depth = dag.task_by_tree_depth
     for task in dag.tasks:

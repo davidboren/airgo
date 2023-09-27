@@ -13,7 +13,8 @@ Resources:
     TaskDefinition:
         Type: AWS::ECS::TaskDefinition
         Properties:
-            Family: !Sub "${Environment}-{{PROJECT_NAME}}-{{TEMPLATE_NAME}}"
+            Family:
+                Fn::Sub: "${Environment}-{{PROJECT_NAME}}-{{TEMPLATE_NAME}}"
             ExecutionRoleArn:
                 Fn::ImportValue:
                     Fn::Sub: "${Environment}-{{PROJECT_NAME}}-TaskExecutionRole"
@@ -26,12 +27,14 @@ Resources:
             Memory: '512'
             ContainerDefinitions:
             - Name: "task-container"
-                Image: !Sub ${SET IMAGE HERE}
+                Image:
+                    Fn::Sub: ${SET IMAGE HERE}
                 Environment:
                 - Name: "PYTHONPATH"
                     Value: "."
                 - Name: "ENV"
-                    Value: !Sub "${Environment}"
+                    Value:
+                        Fn::Sub: "${Environment}"
                 Essential: True
                 Command: ["python", "-m", "airgo.dag_entrypoint"]
                 Cpu: '256'
