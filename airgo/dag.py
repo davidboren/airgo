@@ -352,7 +352,7 @@ class DAG:
             ).render(
                 PROJECT_NAME=self.project_name,
                 DAG_NAME=self.dag_id,
-                STATE_MACHINE_DEFINITION=self.state_machine_definition,
+                STATE_MACHINE_DEFINITION=json.dumps(self.state_machine_definition),
             ),
             Loader=yaml.FullLoader,
         )
