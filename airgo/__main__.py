@@ -62,7 +62,7 @@ def submit_workflow(workflow_data, parameters):
     with open(tf.name, "w") as temp:
         yaml.dump(
             yaml.load(
-                workflow_data.replace("${IMAGE_TAG}", f"sha-{get_commit_sha()}"),
+                workflow_data.replace("${Image_Tag}", f"sha-{get_commit_sha()}"),
                 Loader=yaml.FullLoader,
             ),
             temp,
@@ -200,7 +200,7 @@ def init(
             ) as f:
                 f.write(
                     default_container.replace(
-                        "${SET IMAGE HERE}", f"{docker_repo}:${{IMAGE_TAG}}"
+                        "${SET IMAGE HERE}", f"{docker_repo}:${{Image_Tag}}"
                     )
                 )
         copy_template(
@@ -234,7 +234,7 @@ def init(
         ) as f:
             if docker_repo:
                 default_task = default_task.replace(
-                    "${SET IMAGE HERE}", f"{docker_repo}:${{IMAGE_TAG}}"
+                    "${SET IMAGE HERE}", f"{docker_repo}:${{Image_Tag}}"
                 )
 
             f.write(default_task)
