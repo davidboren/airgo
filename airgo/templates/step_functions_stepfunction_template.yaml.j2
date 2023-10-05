@@ -12,7 +12,7 @@ Resources:
     Type: AWS::SNS::Topic
     Properties:
       TopicName:
-        Fn::Sub: "${Environment}-{{PROJECT_NAME}}-{{DAG_NAME}}-notification-topic"
+        Fn::Sub: "${Environment}-{{PROJECT_NAME}}-{{DAG_NAME}}-failure-notification-topic"
   TopicPolicy:
     Type: AWS::SNS::TopicPolicy
     DependsOn:
@@ -39,7 +39,7 @@ Resources:
         Fn::Sub: "${Environment}-{{PROJECT_NAME}}-{{DAG_NAME}}-StateMachine"
       RoleArn:
         Fn::ImportValue:
-          Fn::Sub: "${Environment}-{{PROJECT_NAME}}-{{DAG_NAME}}-StateMachineRole"
+          Fn::Sub: "${Environment}-{{PROJECT_NAME}}-StateMachineRole"
       DefinitionString:
         Fn::Sub: {{STATE_MACHINE_DEFINITION}}
   ScheduledEventIAMRole:
