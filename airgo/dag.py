@@ -308,7 +308,7 @@ class DAG:
     def state_machine_definition(self):
         return json.dumps(
             {
-                "StartsAt": "__DEFINE_DEFAULTS",
+                "StartAt": "__DEFINE_DEFAULTS",
                 "States": {task.task_id: task.to_sf_dict() for task in self.tasks},
             }
         )
