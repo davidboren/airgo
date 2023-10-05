@@ -317,7 +317,7 @@ class DAG:
         return {
             "Type": "AWS::Events::Rule",
             "Properties": {
-                "Description": "Scheduled event on Tuesday (UTC) to trigger Step Functions state machine",
+                "Description": f"Scheduled event on with cron schedule {cron_schedule}",
                 "ScheduleExpression": cron_schedule
                 if cron_schedule.startswith("cron(")
                 else f"cron({cron_schedule})",
