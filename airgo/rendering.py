@@ -128,16 +128,12 @@ def render_step_function_workflows(
 
     for taskdefinition_template_filename in os.listdir(get_container_templates_dir()):
         if taskdefinition_template_filename.endswith("yaml.j2"):
-            template = (
-                get_template(
-                    get_container_templates_dir(), taskdefinition_template_filename
-                ).render(
-                    PROJECT_NAME=project_config["project_name"],
-                    AWS_REGION=project_config["aws_region"],
-                    TEMPLATE_NAME=taskdefinition_template_filename.replace(
-                        ".yaml.j2", ""
-                    ),
-                ),
+            template = get_template(
+                get_container_templates_dir(), taskdefinition_template_filename
+            ).render(
+                PROJECT_NAME=project_config["project_name"],
+                AWS_REGION=project_config["aws_region"],
+                TEMPLATE_NAME=taskdefinition_template_filename.replace(".yaml.j2", ""),
             )
             with open(
                 os.path.join(
