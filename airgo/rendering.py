@@ -148,7 +148,9 @@ def render_step_function_workflows(
             ),
             with open(
                 os.path.join(
-                    rendered_yamls_dir, "containers", taskdefinition_template_filename
+                    rendered_yamls_dir,
+                    "containers",
+                    taskdefinition_template_filename.replace(".yaml.j2", ".yaml"),
                 ),
                 "w",
             ) as f:

@@ -28,9 +28,9 @@ Resources:
                 - cloudwatch.amazonaws.com
             Action: "sns:Publish"
             Resource:
-              - Fn::Ref: DAGFailureNotificationTopic
+              - Ref: DAGFailureNotificationTopic
       Topics:
-        - Fn::Ref: DAGFailureNotificationTopic
+        - Ref: DAGFailureNotificationTopic
   # State Machine to orchestrate AWS Fargate Tasks ---
   StateMachine:
     Type: AWS::StepFunctions::StateMachine
@@ -64,7 +64,7 @@ Resources:
               - Effect: "Allow"
                 Action: "states:StartExecution"
                 Resource:
-                  - Fn::Ref: StateMachine
+                  - Ref: StateMachine
   FailureEvent:
     Type: AWS::Events::Rule
     DependsOn:
@@ -82,10 +82,10 @@ Resources:
             - "FAILED"
             - "TIMED_OUT"
           stateMachineArn: 
-            - Fn::Ref: StateMachine
+            - Ref: StateMachine
       Targets:
         - Arn:
-            Fn::Ref: DAGFailureNotificationTopic
+            Ref: DAGFailureNotificationTopic
           Id: DAGFailureNotificationTopic
           InputTransformer:
             InputPathsMap:
