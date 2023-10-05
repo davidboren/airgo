@@ -6,7 +6,7 @@ Parameters:
       - sandbox
       - stage
       - prod
-  Image_Tag:
+  ImageTag:
     Type: 'String'
 
 Resources:
@@ -26,23 +26,23 @@ Resources:
             Cpu: '256'
             Memory: '512'
             ContainerDefinitions:
-            - Name: "task-container"
+              - Name: "task-container"
                 Image:
                     Fn::Sub: ${SET IMAGE HERE}
                 Environment:
-                - Name: "PYTHONPATH"
+                  - Name: "PYTHONPATH"
                     Value: "."
-                - Name: "ENV"
+                  - Name: "ENV"
                     Value:
-                        Fn::Sub: "${Environment}"
+                      Fn::Sub: "${Environment}"
                 Essential: True
                 Command: ["python", "-m", "airgo.dag_entrypoint"]
                 Cpu: '256'
                 Memory: '512'
                 LogConfiguration:
-                LogDriver: "awslogs"
-                Options:
-                    awslogs-group: "firelens-container"
-                    awslogs-region: {{AWS_REGION}}
-                    awslogs-create-group: "true"
-                    awslogs-stream-prefix: "firelens"
+                  LogDriver: "awslogs"
+                  Options:
+                      awslogs-group: "firelens-container"
+                      awslogs-region: {{AWS_REGION}}
+                      awslogs-create-group: "true"
+                      awslogs-stream-prefix: "firelens"
