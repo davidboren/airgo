@@ -180,10 +180,10 @@ def init(
     make_if_not(rendered_yamls_dir)
     make_if_not(os.path.join(rendered_yamls_dir, "manual_workflows"))
     make_if_not(os.path.join(rendered_yamls_dir, "scheduled_workflows"))
-    make_if_not(os.path.join(rendered_yamls_dir, "backfill_workflows"))
     make_if_not(dags_dir)
     make_if_not(tests_dir)
     if project_type == "argo":
+        make_if_not(os.path.join(rendered_yamls_dir, "backfill_workflows"))
         with open(
             os.path.join(script_dir, "templates", "argo_default_template.yaml.j2"), "r"
         ) as f:
@@ -194,7 +194,7 @@ def init(
                     airgo_dir,
                     "templates",
                     "containers",
-                    "default_template.yaml.j2",
+                    "default.yaml.j2",
                 ),
                 "w",
             ) as f:
@@ -214,6 +214,7 @@ def init(
             overwrite=overwrite,
         )
     elif project_type == "step-functions":
+        make_if_not(os.path.join(rendered_yamls_dir, "containers"))
         with open(
             os.path.join(
                 script_dir,
@@ -228,7 +229,7 @@ def init(
                 airgo_dir,
                 "templates",
                 "containers",
-                "default_template.yaml.j2",
+                "default.yaml.j2",
             ),
             "w",
         ) as f:
@@ -309,9 +310,7 @@ def render(hash_check):
     if project_config["project_type"] == "argo":
         render_argo_workflows(project_config, dags, rendered_yamls_dir)
     else:
-        render_step_function_workflows(
-            project_config, dags, rendered_yamls_dir, templates_dir
-        )
+        render_step_function_workflows(project_config, dags, rendered_yamls_dir)
     if hash_check and old_sha != gen_sha():
         raise Exception(
             "Hashes of rendered_yaml directory before and after rendering do not match!"

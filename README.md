@@ -217,7 +217,7 @@ Each dag has a `concurrency_policy` argument, which defaults to `Forbid`.  When 
 
 ## Templates
 
-The airgo templates directory contains a subdirectory (`containers`) for container templates for use by your dags.  In it's simplest, most easily testable form you get a `default_template.j2` container template with an image tag that you must set yourself to your repository/image path.
+The airgo templates directory contains a subdirectory (`containers`) for container templates for use by your dags.  In it's simplest, most easily testable form you get a `default.j2` container template with an image tag that you must set yourself to your repository/image path.
 
 ```jinja2
 container:

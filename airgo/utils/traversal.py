@@ -39,7 +39,7 @@ def get_project_config():
     }
 
 
-def get_container_templates():
+def get_argo_container_templates():
     dict_ = {}
     container_templates_dir = get_container_templates_dir()
     for filename in os.listdir(container_templates_dir):
@@ -52,13 +52,17 @@ def get_container_templates():
     return dict_
 
 
-def get_configuration_template(filename):
+def get_template(dirpath, filename):
     """
-    Function for loading a jinja2 template from our templates directory
+    Function for loading a jinja2 template from a directory
 
     :Returns: Jinja2 template
     :Usage: >>> service_template = get_template("service.j2")
     """
     return Environment(
-        loader=FileSystemLoader(get_workflow_templates_dir()), undefined=DebugUndefined
+        loader=FileSystemLoader(dirpath), undefined=DebugUndefined
     ).get_template(filename)
+
+
+def get_configuration_template(filename):
+    return get_template(get_workflow_templates_dir(), filename)

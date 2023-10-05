@@ -7,6 +7,9 @@ from airgo.dag import DAG, yaml
 from airgo.dag_to_state_machine import convert_dag_to_state_machine
 from airgo.utils.traversal import (
     get_configuration_template,
+    get_container_templates_dir,
+    get_project_template_dir,
+    get_template,
 )
 
 
@@ -61,7 +64,7 @@ def render_argo_workflows(project_config, dags, rendered_yamls_dir):
     workflow_templates = {
         template_name: template
         for k in sorted(scheduled_dags.keys())
-        for template_name, template in scheduled_dags[k].templates.items()
+        for template_name, template in scheduled_dags[k].argo_templates.items()
     }
     with open(os.path.join(rendered_yamls_dir, "scheduled_workflows.yaml"), "w") as f:
         f.write(
@@ -91,7 +94,6 @@ def render_step_function_workflows(
     project_config: Dict[str, str],
     dags: Dict[str, DAG],
     rendered_yamls_dir: str,
-    templates_dir: str,
 ):
     for dag in dags.values():
         convert_dag_to_state_machine(dag)
@@ -124,7 +126,7 @@ def render_step_function_workflows(
     with open(os.path.join(rendered_yamls_dir, f"resources.yaml"), "w") as f:
         yaml.dump(resources, f, default_flow_style=False, allow_unicode=True)
 
-    for template_filename in os.listdir(templates_dir):
+    for template_filename in os.listdir(get_project_template_dir()):
         if template_filename.endswith("yaml.j2"):
             get_configuration_template(template_filename).render(
                 PROJECT_NAME=project_config["project_name"],
@@ -132,6 +134,24 @@ def render_step_function_workflows(
                 AWS_ID=project_config["aws_id"],
             ),
             with open(os.path.join(rendered_yamls_dir, f"resources.yaml"), "w") as f:
+                yaml.dump(
+                    dag.state_machine, f, default_flow_style=False, allow_unicode=True
+                )
+    for taskdefinition_template_filename in os.listdir(get_container_templates_dir()):
+        if taskdefinition_template_filename.endswith("yaml.j2"):
+            get_template(
+                get_container_templates_dir(), taskdefinition_template_filename
+            ).render(
+                PROJECT_NAME=project_config["project_name"],
+                AWS_REGION=project_config["aws_region"],
+                TEMPLATE_NAME=taskdefinition_template_filename.replace(".yaml.j2", ""),
+            ),
+            with open(
+                os.path.join(
+                    rendered_yamls_dir, "containers", taskdefinition_template_filename
+                ),
+                "w",
+            ) as f:
                 yaml.dump(
                     dag.state_machine, f, default_flow_style=False, allow_unicode=True
                 )

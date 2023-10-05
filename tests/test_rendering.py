@@ -1,4 +1,7 @@
 from airgo import traverse_dags_folder
+from airgo.rendering import render_step_function_workflows
+from airgo.utils.traversal import get_project_config
+
 import pytest
 import os
 
@@ -55,9 +58,6 @@ def test_stepfunction_init(initialized_stepfunction_project):
 def test_stepfunction_rendering(
     initialized_stepfunction_project,
 ):
-    from airgo.rendering import render_step_function_workflows
-    from airgo.utils.traversal import get_project_config
-
     dag_dict = traverse_dags_folder(
         os.path.join(initialized_stepfunction_project, "dags")
     )
@@ -69,9 +69,6 @@ def test_stepfunction_rendering(
         project_config=get_project_config(),
         dags=dag_dict,
         rendered_yamls_dir=rendered_yamls_dir,
-        templates_dir=os.path.join(
-            initialized_stepfunction_project, "airgo", "templates"
-        ),
     )
     for k in dag_dict:
         assert os.path.exists(

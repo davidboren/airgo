@@ -81,7 +81,7 @@ class BaseOperator:
         dag: Any,
         limits_cpu: Optional[str] = None,
         limits_memory: Optional[str] = None,
-        template: str = "default_template",
+        template: str = "default",
         retries: int = 0,
         parameters: Union[Dict[str, str], None] = None,
         upstream_operators: None = None,

@@ -13,7 +13,7 @@ from airgo.utils.decorators import local_artifact_directory
 from airgo.exceptions import AirgoInstantiationException
 from airgo.utils.traversal import (
     get_project_config,
-    get_container_templates,
+    get_argo_container_templates,
     get_configuration_template,
 )
 from airgo.utils.k8 import k8_str_test
@@ -247,8 +247,8 @@ class DAG:
         return sorted(set([task.final_template_name for task in self.tasks]))
 
     @property
-    def templates(self):
-        raw_templates = get_container_templates()
+    def argo_templates(self):
+        raw_templates = get_argo_container_templates()
         final_template_tasks = {task.final_template_name: task for task in self.tasks}
         return {
             template_name: task.gen_template(deepcopy(raw_templates[task.template]))
