@@ -359,7 +359,7 @@ class DAG:
         if self.schedule_interval:
             state_machine["Resources"].update(**self.state_machine_schedule_events)
         if self.state_machine_email_notification_on_failure:
-            state_machine["Resources"]["DAGFailureNotificationTopic"][
+            state_machine["Resources"]["DAGFailureNotificationTopic"]["Properties"][
                 "Subscription"
             ] = {
                 "Protocol": "email",
