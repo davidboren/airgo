@@ -244,7 +244,7 @@ def init(
             overwrite=overwrite,
         )
         copy_template(
-            "step_functions_roles_template.yaml.j2",
+            "step_functions_resources_template.yaml.j2",
             os.path.join("airgo", "templates", "configuration"),
             overwrite=overwrite,
         )

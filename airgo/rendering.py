@@ -113,16 +113,16 @@ def render_step_function_workflows(
                 dag.state_machine, f, default_flow_style=False, allow_unicode=True
             )
 
-    roles = yaml.load(
-        get_configuration_template("step_functions_roles_template.yaml.j2").render(
+    resources = yaml.load(
+        get_configuration_template("step_functions_resources_template.yaml.j2").render(
             PROJECT_NAME=project_config["project_name"],
             AWS_REGION=project_config["aws_region"],
             AWS_ID=project_config["aws_id"],
         ),
         Loader=yaml.FullLoader,
     )
-    with open(os.path.join(rendered_yamls_dir, f"roles.yaml"), "w") as f:
-        yaml.dump(roles, f, default_flow_style=False, allow_unicode=True)
+    with open(os.path.join(rendered_yamls_dir, f"resources.yaml"), "w") as f:
+        yaml.dump(resources, f, default_flow_style=False, allow_unicode=True)
 
     for template_filename in os.listdir(templates_dir):
         if template_filename.endswith("yaml.j2"):
@@ -131,7 +131,7 @@ def render_step_function_workflows(
                 AWS_REGION=project_config["aws_region"],
                 AWS_ID=project_config["aws_id"],
             ),
-            with open(os.path.join(rendered_yamls_dir, f"roles.yaml"), "w") as f:
+            with open(os.path.join(rendered_yamls_dir, f"resources.yaml"), "w") as f:
                 yaml.dump(
                     dag.state_machine, f, default_flow_style=False, allow_unicode=True
                 )
