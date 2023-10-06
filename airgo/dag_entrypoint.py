@@ -1,5 +1,3 @@
-#!/bin/python3
-
 from airgo import traverse_dags_folder
 import os
 
