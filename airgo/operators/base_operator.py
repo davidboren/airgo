@@ -517,12 +517,12 @@ class BaseOperator:
             template,
             Loader=yaml.FullLoader,
         )
+        template["Parameters"]["Overrides"]["Cpu"] = self.limits_cpu
+        template["Parameters"]["Overrides"]["Memory"] = self.limits_memory
+        container_override = template["Parameters"]["Overrides"]["ContainerOverrides"][
+            0
+        ]
         if self.dag.state_machine_default_inputs:
-            template["Parameters"]["Overrides"]["Cpu"] = self.limits_cpu
-            template["Parameters"]["Overrides"]["Memory"] = self.limits_memory
-            container_override = template["Parameters"]["Overrides"][
-                "ContainerOverrides"
-            ][0]
             container_override["Environment"].extend(
                 [
                     {"Name": k, "Value.$": f"$.dagInputs.{k}"}

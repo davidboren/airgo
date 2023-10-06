@@ -102,6 +102,15 @@ class DAG:
         self.state_machine_email_notification_on_failure = (
             state_machine_email_notification_on_failure
         )
+        for k, v in state_machine_default_inputs.items():
+            if not isinstance(v, str):
+                raise AirgoInstantiationException(
+                    f"State machine default input values must be strings, not {type(v)}"
+                )
+            if not isinstance(k, str):
+                raise AirgoInstantiationException(
+                    f"State machine default input keys must be strings, not {type(k)}"
+                )
 
     @property
     def concurrency_policy(self) -> str:
