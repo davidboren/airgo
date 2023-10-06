@@ -1,10 +1,11 @@
+#!/bin/python3
+
 from airgo import traverse_dags_folder
 import os
 
 working_dir = os.getcwd()
 dags_dir = os.getenv("DAGS_DIRECTORY", os.path.join(working_dir, "dags"))
 tags = {k: os.getenv(k) for k in ["DAG_ID", "TASK_ID"]}
-
 
 
 def create_context(dag):
