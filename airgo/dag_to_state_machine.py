@@ -62,12 +62,12 @@ class ChoiceSMOperator(BaseOperator):
             "Type": "Choice",
             "Choices": [
                 {
-                    "Variable": "$.artifacts.short-circuit",
+                    "Variable": "$.artifacts.short_circuit",
                     "NumericEquals": 0,
                     **self.df_next_or_end(),
                 },
                 {
-                    "Variable": "$.artifacts.short-circuit",
+                    "Variable": "$.artifacts.short_circuit",
                     "NumericEquals": 1,
                     "Next": "__FINISH",
                 },
