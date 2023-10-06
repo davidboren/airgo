@@ -72,7 +72,7 @@ class ChoiceSMOperator(BaseOperator):
                     "Next": "__FINISH",
                 },
             ],
-            "Default": "SFTP_TO_S3",
+            "Default": "__FINISH",
         }
 
 
