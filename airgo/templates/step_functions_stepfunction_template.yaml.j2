@@ -46,7 +46,7 @@ Resources:
     Type: AWS::IAM::Role
     Properties:
       RoleName:
-        Fn::Sub: "${Environment}-{{PROJECT_NAME}}-{{DAG_NAME}}-statemachine"
+        Fn::Sub: "${Environment}-{{PROJECT_NAME}}-{{DAG_NAME}}-sm"
       AssumeRolePolicyDocument:
         Version: "2012-10-17"
         Statement:
