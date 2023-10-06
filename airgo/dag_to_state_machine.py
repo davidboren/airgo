@@ -35,10 +35,10 @@ class ApplyDefaultsSMOperator(BaseOperator):
     def to_sf_dict(self):
         return {
             "Type": "Pass",
-            "ResultPath": "$.dagInputs",
-            "OutputPath": "$.dagInputs",
+            "ResultPath": "$.applied",
+            "OutputPath": "$.applied",
             "Parameters": {
-                "args.$": "States.JsonMerge($.inputDefaults, $$.Execution.Input, false)",
+                "dagInputs.$": "States.JsonMerge($.inputDefaults, $$.Execution.Input, false)",
             },
             **self.df_next_or_end,
         }
