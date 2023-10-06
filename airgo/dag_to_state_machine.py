@@ -131,19 +131,21 @@ def convert_dag_to_state_machine(dag: DAG):
     i = 0
     last_node = None
     while len(tasks_by_tree_depth[i]) > 0:
-        if len(tasks_by_tree_depth[i]) == 1:
-            n = tasks_by_tree_depth[i][0]
+        tasks = tasks_by_tree_depth[i]
+        is_branching = len(tasks) > 1
+        if not is_branching:
+            n = tasks[0]
         else:
             n = ParallelSMOperator(
                 dag=dag, task_id=f"__PARALLEL_{i}", tasks=tasks_by_tree_depth[i]
             )
-            for task in tasks_by_tree_depth[i]:
+            for task in tasks:
                 dag.tasks.remove(task)
         if last_node:
             n.set_upstream(last_node)
         last_node = n
         if n.has_short_circuit:
-            if len(tasks_by_tree_depth[i]) > 1:
+            if is_branching:
                 n = ParallelShortCircuitMergeSMOperator(
                     dag=dag, task_id=f"__PARALLEL_SHORT_CIRCUIT_MERGE_{i}"
                 )

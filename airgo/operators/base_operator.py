@@ -546,6 +546,7 @@ class BaseOperator:
             template["ResultPath"] = "$.artifacts"
         else:
             template["ResultPath"] = None
+        template.update(**self.df_next_or_end)
         return template
 
     def should_execute(self, execution_set: Dict[str, Set[str]]) -> bool:
