@@ -2,12 +2,16 @@ import logging
 import json
 import hashlib
 import os
+import yaml
 
 from typing import Dict, List, Optional, Set, Any, Union, Iterable, Sequence
 from cached_property import cached_property  # type: ignore
 from logging import Logger
 from datetime import datetime
 
+from airgo.utils.traversal import (
+    get_configuration_template,
+)
 from airgo.exceptions import AirgoInstantiationException
 from airgo.utils.decorators import (
     apply_defaults,
@@ -32,9 +36,9 @@ class BaseOperator:
     :type requests_cpu: str
     :param requests_memory: Kubernetes compatible memory requests string.
     :type requests_memory: str
-    :param limits_cpu: Kubernetes compatible cpu limits string.
+    :param limits_cpu: Kubernetes or State-Machine compatible cpu limits string.
     :type limits_cpu: str
-    :param limits_memory: Kubernetes compatible memory limits string.
+    :param limits_memory: Kubernetes or State-Machine compatible memory limits string.
     :type limits_memory: str
     :param template: Name of template to use.  References the names of the yamls placed in your `airgo/templates` directory
     :type template: str
@@ -77,21 +81,21 @@ class BaseOperator:
         dag: Any,
         limits_cpu: Optional[str] = None,
         limits_memory: Optional[str] = None,
-        template: str = "default_template",
+        template: str = "default",
         retries: int = 0,
         parameters: Union[Dict[str, str], None] = None,
         upstream_operators: None = None,
         downstream_operators: None = None,
         hard_disk_path: Union[None, str] = None,
     ) -> None:
+        self.dag = dag
         self.requests_cpu = requests_cpu
         self.requests_memory = requests_memory
         self.limits_cpu = limits_cpu
         self.limits_memory = limits_memory
         self.retries = retries
         self.task_id = task_id
-        self.template = k8_str_filter(template)
-        self.dag = dag
+        self.template = k8_str_filter(template, dag.project_type)
         self.upstream_tasks: List[BaseOperator] = []
         self.downstream_tasks: List[BaseOperator] = []
         self.hard_disk_path = hard_disk_path
@@ -103,7 +107,7 @@ class BaseOperator:
         self.parameters = (
             {}
             if parameters is None
-            else {k8_str_filter(p): v for p, v in parameters.items()}
+            else {k8_str_filter(p, dag.project_type): v for p, v in parameters.items()}
         )
 
     @property
@@ -116,6 +120,23 @@ class BaseOperator:
 
     def __repr__(self):
         return f"{self.task_id}: {self.__class__.__name__}"
+
+    def __eq__(self, other: "BaseOperator") -> bool:
+        return self.task_id == other.task_id
+
+    def __rshift__(self, other: "BaseOperator") -> "BaseOperator":
+        """
+        Implements Self >> Other == self.set_downstream(other)
+        """
+        self.set_downstream(other)
+        return other
+
+    def __lshift__(self, other: "BaseOperator") -> "BaseOperator":
+        """
+        Implements Self << Other == self.set_upstream(other)
+        """
+        self.set_upstream(other)
+        return other
 
     @cached_property
     def logger(self) -> Logger:
@@ -133,7 +154,7 @@ class BaseOperator:
     @parameters.setter
     def parameters(self, parameters: Dict[str, Any]) -> None:
         for k in parameters.keys():
-            k8_str_test(k, "parameters")
+            k8_str_test(k, "parameters", self.dag.project_type)
         self._parameters = parameters
 
     @property
@@ -146,7 +167,7 @@ class BaseOperator:
 
     @template.setter
     def template(self, template: str) -> None:
-        k8_str_test(template, "template")
+        k8_str_test(template, "template", self.dag.project_type)
         self._template = template
 
     @property
@@ -160,7 +181,7 @@ class BaseOperator:
                 f"Your task_id must be a string, not {type(task_id)}"
             )
 
-        k8_str_test(task_id, "task_id")
+        k8_str_test(task_id, "task_id", self.dag.project_type)
         self._task_id = task_id
 
     @property
@@ -284,12 +305,28 @@ class BaseOperator:
                     self.downstream_tasks.append(task)
                     task.set_upstream(self)
 
+    def clear_relatives(self):
+        for task in self.downstream_tasks:
+            task.upstream_tasks.remove(self)
+        for task in self.upstream_tasks:
+            task.downstream_tasks.remove(self)
+        self.downstream_tasks = []
+        self.upstream_tasks = []
+
     def get_all_relative_ids(self, upstream: bool = True) -> Set[str]:
         deps = self.upstream_tasks if upstream else self.downstream_tasks
         return set(
             [t for r in deps for t in r.get_all_relative_ids(upstream)]
             + [t.task_id for t in deps]
         )
+
+    @property
+    def all_upstream_task_ids(self):
+        return self.get_all_relative_ids(upstream=True)
+
+    @property
+    def all_downstream_task_ids(self):
+        return self.get_all_relative_ids(upstream=False)
 
     @property
     def hashable_attribute_names(self) -> List[str]:
@@ -322,7 +359,13 @@ class BaseOperator:
 
     @property
     def filtered_default_parameters(self) -> List[str]:
-        return [k8_str_filter(el) for el in self.default_parameters]
+        return [
+            k8_str_filter(el, self.dag.project_type) for el in self.default_parameters
+        ]
+
+    @property
+    def has_short_circuit(self):
+        return "short_circuit" in self.artifact_properties
 
     @cached_property
     def upstream_short_circuits(self) -> Sequence["BaseOperator"]:
@@ -330,7 +373,7 @@ class BaseOperator:
             t
             for t in self.dag.tasks
             if t.task_id in self.get_all_relative_ids(upstream=True)
-            and "short_circuit" in t.artifact_properties
+            and t.has_short_circuit
         ]
 
     @cached_property
@@ -409,7 +452,7 @@ class BaseOperator:
             }
         return template
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_argo_dict(self) -> Dict[str, Any]:
         sc = self.upstream_short_circuits
         return {
             "name": self.task_id,
@@ -447,19 +490,64 @@ class BaseOperator:
             ),
         }
 
-    def __rshift__(self, other: "BaseOperator") -> "BaseOperator":
-        """
-        Implements Self >> Other == self.set_downstream(other)
-        """
-        self.set_downstream(other)
-        return other
+    @property
+    def df_next_or_end(self) -> Dict[str, Any]:
+        if len(self.downstream_tasks) == 0:
+            return {"End": True}
+        elif len(self.downstream_tasks) == 1:
+            return {"Next": self.downstream_tasks[0].task_id}
+        else:
+            raise AirgoInstantiationException(
+                f"Task {self.task_id} has more than one downstream task"
+            )
 
-    def __lshift__(self, other: "BaseOperator") -> "BaseOperator":
-        """
-        Implements Self << Other == self.set_upstream(other)
-        """
-        self.set_upstream(other)
-        return other
+    def to_sf_dict(self) -> Dict[str, Any]:
+        template = get_configuration_template(
+            "step_functions_task_template.yaml.j2"
+        ).render(
+            CLUSTER_ARN=self.dag.aws_ecs_cluster_arn,
+            PROJECT_NAME=self.dag.project_name,
+            AWS_REGION=self.dag.aws_region,
+            AWS_ID=self.dag.aws_id,
+            SUBNET_ID=self.dag.aws_subnet_id,
+            SECURITY_GROUP=self.dag.aws_security_group,
+            TEMPLATE_NAME=self.template,
+        )
+        template = yaml.load(
+            template,
+            Loader=yaml.FullLoader,
+        )
+        template["Parameters"]["Overrides"]["Cpu"] = self.limits_cpu
+        template["Parameters"]["Overrides"]["Memory"] = self.limits_memory
+        container_override = template["Parameters"]["Overrides"]["ContainerOverrides"][
+            0
+        ]
+        if self.dag.state_machine_default_inputs:
+            container_override["Environment"].extend(
+                [
+                    {"Name": k, "Value.$": f"$.dagInputs.{k}"}
+                    for k in self.dag.state_machine_default_inputs.keys()
+                ]
+                + [
+                    {"Name": "DAG_ID", "Value": self.dag.dag_id},
+                    {"Name": "TASK_ID", "Value": self.task_id},
+                ]
+            )
+        if self.retries > 0:
+            template["Retry"] = [
+                {
+                    "ErrorEquals": ["States.TaskFailed"],
+                    "IntervalSeconds": 3,
+                    "MaxAttempts": self.retries,
+                    "BackoffRate": 2,
+                }
+            ]
+        if self.artifact_properties:
+            template["ResultPath"] = "$.artifacts"
+        else:
+            template["ResultPath"] = None
+        template.update(**self.df_next_or_end)
+        return template
 
     def should_execute(self, execution_set: Dict[str, Set[str]]) -> bool:
         upstream_shorted = self.get_all_relative_ids(upstream=True).intersection(
@@ -484,8 +572,17 @@ class BaseOperator:
         self.execute_syncronously({}, self.dag.default_context)
 
     def save_artifacts(self) -> None:
+        res = {}
         for property_name in self.artifact_properties:
-            getattr(self, property_name)
+            res[property_name] = getattr(self, property_name)
+        if self.dag.project_type == "step-functions":
+            import boto3
+
+            client = boto3.client("stepfunctions")
+            client.send_task_success(
+                taskToken=os.environ["TASK_TOKEN"],
+                output=json.dumps(res),
+            )
 
     def ensure_hd_dir(self) -> None:
         if self.hard_disk_path is not None:

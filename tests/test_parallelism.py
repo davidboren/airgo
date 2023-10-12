@@ -27,7 +27,7 @@ class Parameterized(RuntimeParallelizeOperator):
             self.dag.EXECUTED_PARAMETERS = [self.parameter]
 
 
-def test_artifact_parallelism(default_args):
+def test_artifact_parallelism(mock_get_project_config, default_args):
     dag = DAG(
         dag_id="parallel-dag",
         description="test parallelism",

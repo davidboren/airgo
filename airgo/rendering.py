@@ -4,6 +4,13 @@ import os
 
 from importlib.machinery import SourceFileLoader
 from airgo.dag import DAG, yaml
+from airgo.dag_to_state_machine import convert_dag_to_state_machine
+from airgo.utils.traversal import (
+    get_configuration_template,
+    get_container_templates_dir,
+    get_project_template_dir,
+    get_template,
+)
 
 
 def traverse_dags_folder(
@@ -36,7 +43,7 @@ def gen_shared_templates(project_name, namespace, workflow_templates):
     }
 
 
-def render_workflows(project_name, namespace, dags, rendered_yamls_dir):
+def render_argo_workflows(project_config, dags, rendered_yamls_dir):
     manual_dags = {k: v for k, v in dags.items() if v.schedule_interval is None}
     scheduled_dags = {k: v for k, v in dags.items() if v.schedule_interval is not None}
     backfill_dags = {
@@ -46,35 +53,99 @@ def render_workflows(project_name, namespace, dags, rendered_yamls_dir):
         with open(
             os.path.join(rendered_yamls_dir, "manual_workflows", f"{dag_id}.yaml"), "w"
         ) as f:
-            yaml.dump(dag.workflow, f, default_flow_style=False)
+            yaml.dump(dag.argo_workflow, f, default_flow_style=False)
     for dag_id, dag in backfill_dags.items():
         with open(
             os.path.join(rendered_yamls_dir, "backfill_workflows", f"{dag_id}.yaml"),
             "w",
         ) as f:
-            yaml.dump(dag.workflow, f, default_flow_style=False)
+            yaml.dump(dag.argo_workflow, f, default_flow_style=False)
 
     workflow_templates = {
         template_name: template
         for k in sorted(scheduled_dags.keys())
-        for template_name, template in scheduled_dags[k].templates.items()
+        for template_name, template in scheduled_dags[k].argo_templates.items()
     }
     with open(os.path.join(rendered_yamls_dir, "scheduled_workflows.yaml"), "w") as f:
         f.write(
             "---\n".join(
                 [
                     yaml.dump(
-                        scheduled_dags[dag_id].cron_workflow, default_flow_style=False
+                        scheduled_dags[dag_id].argo_cron_workflow,
+                        default_flow_style=False,
                     )
                     for dag_id in sorted(scheduled_dags.keys())
                 ]
                 + [
                     yaml.dump(
                         gen_shared_templates(
-                            project_name, namespace, workflow_templates
+                            project_config["project_name"],
+                            project_config["namespace"],
+                            workflow_templates,
                         ),
                         default_flow_style=False,
                     )
                 ]
             )
         )
+
+
+def render_step_function_workflows(
+    project_config: Dict[str, str],
+    dags: Dict[str, DAG],
+    rendered_yamls_dir: str,
+):
+    for dag in dags.values():
+        convert_dag_to_state_machine(dag)
+    manual_dags = {k: v for k, v in dags.items() if v.schedule_interval is None}
+    scheduled_dags = {k: v for k, v in dags.items() if v.schedule_interval is not None}
+    for dag_id, dag in manual_dags.items():
+        with open(
+            os.path.join(rendered_yamls_dir, "manual_workflows", f"{dag_id}.yaml"), "w"
+        ) as f:
+            yaml.dump(
+                dag.state_machine, f, default_flow_style=False, allow_unicode=True
+            )
+    for dag_id, dag in scheduled_dags.items():
+        with open(
+            os.path.join(rendered_yamls_dir, "scheduled_workflows", f"{dag_id}.yaml"),
+            "w",
+        ) as f:
+            yaml.dump(
+                dag.state_machine, f, default_flow_style=False, allow_unicode=True
+            )
+
+    resources = yaml.load(
+        get_configuration_template("step_functions_resources_template.yaml.j2").render(
+            PROJECT_NAME=project_config["project_name"],
+            AWS_REGION=project_config["aws_region"],
+            AWS_ID=project_config["aws_id"],
+        ),
+        Loader=yaml.FullLoader,
+    )
+    with open(os.path.join(rendered_yamls_dir, f"resources.yaml"), "w") as f:
+        yaml.dump(resources, f, default_flow_style=False, allow_unicode=True)
+
+    for taskdefinition_template_filename in os.listdir(get_container_templates_dir()):
+        if taskdefinition_template_filename.endswith("yaml.j2"):
+            template = yaml.load(
+                get_template(
+                    get_container_templates_dir(), taskdefinition_template_filename
+                ).render(
+                    PROJECT_NAME=project_config["project_name"],
+                    AWS_REGION=project_config["aws_region"],
+                    TEMPLATE_NAME=taskdefinition_template_filename.replace(
+                        ".yaml.j2", ""
+                    ),
+                ),
+                Loader=yaml.FullLoader,
+            )
+            with open(
+                os.path.join(
+                    rendered_yamls_dir,
+                    "containers",
+                    taskdefinition_template_filename.replace(".yaml.j2", ".yaml"),
+                ),
+                "w",
+            ) as f:
+                yaml.dump(template, f, default_flow_style=False, allow_unicode=True)

@@ -1,5 +1,6 @@
 import inspect
 import os
+import json
 
 from cached_property import cached_property  # type: ignore
 from copy import copy
@@ -72,17 +73,21 @@ def artifact_property(serializer: Callable = json_list_serializer):
         def wrapper(self):
             self.logger.info(f"Getting Result for artifact `{func.__qualname__}`")
             res = func(self)
-            artifact_dir = self.get_artifact_dir()
-            if not os.path.exists(artifact_dir):
-                self.logger.info(f"Creating artifact directory `{artifact_dir}`")
-                os.makedirs(artifact_dir)
             property_name = self.__class__.qualname_to_property(func.__qualname__)
-            artifact_path = self.__class__.artifact_property_to_path(property_name)
-            with open(artifact_path, "w") as f:
-                self.logger.info(
-                    f"Writing result of artifact artifact `{func.__qualname__}` to path `{artifact_path}`"
-                )
-                f.write(serializer(res))
+            if self.dag.project_type == "argo":
+                artifact_dir = self.get_artifact_dir()
+                if not os.path.exists(artifact_dir):
+                    self.logger.info(f"Creating artifact directory `{artifact_dir}`")
+                    os.makedirs(artifact_dir)
+                artifact_path = self.__class__.artifact_property_to_path(property_name)
+                with open(artifact_path, "w") as f:
+                    self.logger.info(
+                        f"Writing result of artifact artifact `{func.__qualname__}` to path `{artifact_path}`"
+                    )
+                    f.write(serializer(res))
+                return res
+            elif property_name == "short_circuit":
+                res = int(res)
             return res
 
         return wrapper

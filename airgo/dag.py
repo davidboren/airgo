@@ -1,7 +1,9 @@
-from typing import Optional, List, Dict, Any, Union
+from typing import Optional, List, Dict, Any, Union, Tuple
 
+from collections import deque, defaultdict
 from cached_property import cached_property  # type: ignore
 from copy import deepcopy
+import json
 import datetime as dt
 import yaml
 import os
@@ -11,7 +13,7 @@ from airgo.utils.decorators import local_artifact_directory
 from airgo.exceptions import AirgoInstantiationException
 from airgo.utils.traversal import (
     get_project_config,
-    get_container_templates,
+    get_argo_container_templates,
     get_configuration_template,
 )
 from airgo.utils.k8 import k8_str_test
@@ -67,11 +69,13 @@ class DAG:
         self,
         dag_id: str,
         description: str,
-        schedule_interval: str = None,
+        schedule_interval: Optional[Union[str, List[str]]] = None,
         default_args: Dict[str, Any] = None,
         concurrency_policy: str = "Forbid",
         start_date: Union[str, dt.datetime, None] = None,
         max_active_runs: Optional[int] = None,
+        state_machine_default_inputs: Optional[Dict[str, Any]] = None,
+        state_machine_email_notification_on_failure: Optional[str] = None,
     ) -> None:
         self.dag_id = dag_id
         if self.dag_id in DAG.REGISTERED_DAGS:
@@ -94,6 +98,19 @@ class DAG:
         self.default_args = {} if default_args is None else default_args
         self.tasks: List[BaseOperator] = []
         self.max_active_runs = max_active_runs
+        self.state_machine_default_inputs = state_machine_default_inputs or {}
+        self.state_machine_email_notification_on_failure = (
+            state_machine_email_notification_on_failure
+        )
+        for k, v in state_machine_default_inputs.items():
+            if not isinstance(v, str):
+                raise AirgoInstantiationException(
+                    f"State machine default input values must be strings, not {type(v)}"
+                )
+            if not isinstance(k, str):
+                raise AirgoInstantiationException(
+                    f"State machine default input keys must be strings, not {type(k)}"
+                )
 
     @property
     def concurrency_policy(self) -> str:
@@ -118,7 +135,7 @@ class DAG:
                 f"Your dag_id must be a string, not {type(dag_id)}"
             )
 
-        k8_str_test(dag_id, "dag_id")
+        k8_str_test(dag_id, "dag_id", self.project_type)
         self._dag_id = dag_id
 
     def add_task(self, task: BaseOperator) -> None:
@@ -142,6 +159,22 @@ class DAG:
             if creation_timestamp
             else dt.datetime.utcnow()
         )
+
+    @property
+    def task_by_tree_depth(self) -> Dict[str, int]:
+        initial_nodes = [v for v in self.tasks if len(v.upstream_tasks) == 0]
+        queue = deque()
+        queue.extend([(n, 0) for n in initial_nodes])
+        traversed_nodes = set()
+        tasks_by_depth = defaultdict(lambda: [])
+        while queue:
+            node, depth = queue.popleft()
+            if node.task_id not in traversed_nodes:
+                tasks_by_depth[depth].append(node)
+                traversed_nodes.add(node.task_id)
+            for child in node.downstream_tasks:
+                queue.append((child, depth + 1))
+        return tasks_by_depth
 
     @classmethod
     def format_date(
@@ -179,20 +212,52 @@ class DAG:
         )
 
     @property
+    def project_config(self):
+        return get_project_config()
+
+    @property
     def project_name(self):
-        return get_project_config()["project_name"]
+        return self.project_config["project_name"]
 
     @property
     def namespace(self):
-        return get_project_config()["namespace"]
+        return self.project_config["namespace"]
+
+    @property
+    def project_type(self):
+        return self.project_config["project_type"]
+
+    @property
+    def docker_repo(self):
+        return self.project_config["docker_repo"]
+
+    @property
+    def aws_id(self):
+        return self.project_config["aws_id"]
+
+    @property
+    def aws_region(self):
+        return self.project_config["aws_region"]
+
+    @property
+    def aws_subnet_id(self):
+        return self.project_config["aws_subnet_id"]
+
+    @property
+    def aws_security_group(self):
+        return self.project_config["aws_security_group"]
+
+    @property
+    def aws_ecs_cluster_arn(self):
+        return self.project_config["aws_ecs_cluster_arn"]
 
     @property
     def template_names(self):
         return sorted(set([task.final_template_name for task in self.tasks]))
 
     @property
-    def templates(self):
-        raw_templates = get_container_templates()
+    def argo_templates(self):
+        raw_templates = get_argo_container_templates()
         final_template_tasks = {task.final_template_name: task for task in self.tasks}
         return {
             template_name: task.gen_template(deepcopy(raw_templates[task.template]))
@@ -204,10 +269,10 @@ class DAG:
         return sorted(set([k for task in self.tasks for k in task.volumes.keys()]))
 
     @property
-    def workflow(self):
+    def argo_workflow(self):
         dag_id = self.dag_id
         workflow = yaml.load(
-            get_configuration_template("workflow.j2").render(
+            get_configuration_template("argo_workflow.yaml.j2").render(
                 PROJECT_NAME=self.project_name, NAMESPACE=self.namespace, DAG_ID=dag_id
             ),
             Loader=yaml.FullLoader,
@@ -216,10 +281,10 @@ class DAG:
         return workflow
 
     @property
-    def cron_workflow(self) -> Dict[str, Any]:
+    def argo_cron_workflow(self) -> Dict[str, Any]:
         dag_id = self.dag_id
         workflow = yaml.load(
-            get_configuration_template("cron_workflow.j2").render(
+            get_configuration_template("argo_cron_workflow.yaml.j2").render(
                 PROJECT_NAME=self.project_name,
                 NAMESPACE=self.namespace,
                 DAG_ID=dag_id,
@@ -238,7 +303,7 @@ class DAG:
         spec: Dict[str, Any] = {"templates": []}
         spec["entrypoint"] = self.dag_id
         sorted_tasks = [
-            task.to_dict() for task in sorted(self.tasks, key=lambda t: t.task_id)
+            task.to_argo_dict() for task in sorted(self.tasks, key=lambda t: t.task_id)
         ]
         spec["podGC"] = {"strategy": "OnWorkflowCompletion"}
         if self.volumes:
@@ -247,6 +312,73 @@ class DAG:
             ]
         spec["templates"].append({"name": self.dag_id, "dag": {"tasks": sorted_tasks}})
         return spec
+
+    @property
+    def state_machine_definition(self):
+        return json.dumps(
+            {
+                "StartAt": "__DEFINE_DEFAULTS",
+                "States": {task.task_id: task.to_sf_dict() for task in self.tasks},
+            }
+        )
+
+    def get_schedule_event_rule(self, cron_schedule):
+        return {
+            "Type": "AWS::Events::Rule",
+            "Properties": {
+                "Description": f"Scheduled event on with cron schedule {cron_schedule}",
+                "ScheduleExpression": cron_schedule
+                if cron_schedule.startswith("cron(")
+                else f"cron({cron_schedule})",
+                "State": "ENABLED",
+                "Targets": [
+                    {
+                        "Arn": {"Ref": "StateMachine"},
+                        "Id": {"Fn::GetAtt": ["StateMachine", "Name"]},
+                        "RoleArn": {"Fn::GetAtt": ["ScheduledEventIAMRole", "Arn"]},
+                    }
+                ],
+            },
+        }
+
+    @property
+    def state_machine_schedule_events(self):
+        if isinstance(self.schedule_interval, str):
+            return {
+                f"ScheduleEventRule1": self.get_schedule_event_rule(
+                    self.schedule_interval
+                )
+            }
+        elif isinstance(self.schedule_interval, list):
+            return {
+                f"ScheduleEventRule{i+1}": self.get_schedule_event_rule(cron)
+                for i, cron in enumerate(self.schedule_interval)
+            }
+
+    @property
+    def state_machine(self):
+        state_machine = yaml.load(
+            get_configuration_template(
+                "step_functions_stepfunction_template.yaml.j2"
+            ).render(
+                PROJECT_NAME=self.project_name,
+                DAG_NAME=self.dag_id,
+                STATE_MACHINE_DEFINITION=json.dumps(self.state_machine_definition),
+            ),
+            Loader=yaml.FullLoader,
+        )
+        if self.schedule_interval:
+            state_machine["Resources"].update(**self.state_machine_schedule_events)
+        if self.state_machine_email_notification_on_failure:
+            state_machine["Resources"]["DAGFailureNotificationTopic"]["Properties"][
+                "Subscription"
+            ] = [
+                {
+                    "Protocol": "email",
+                    "Endpoint": self.state_machine_email_notification_on_failure,
+                }
+            ]
+        return state_machine
 
     @property
     def default_context(self) -> Dict[str, dt.datetime]:
