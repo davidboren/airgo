@@ -139,7 +139,7 @@ Outputs:
       Name:
         Fn::Sub: "${AWS::StackName}-TaskRole"
   StateMachineRole:
-    Description: The StateMachineRole used for running the statemachines definied in this repo
+    Description: The StateMachineRole used for running the statemachines defined in this repo
     Value:
       Fn::GetAtt: [StateMachineIAMRole, "Arn"]
     Export:
