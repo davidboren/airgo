@@ -102,6 +102,7 @@ class DAG:
         self.state_machine_email_notification_on_failure = (
             state_machine_email_notification_on_failure
         )
+        state_machine_default_inputs = state_machine_default_inputs or {}
         for k, v in state_machine_default_inputs.items():
             if not isinstance(v, str):
                 raise AirgoInstantiationException(
