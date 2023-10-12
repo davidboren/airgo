@@ -1,10 +1,6 @@
-from airgo.utils.traversal import get_project_config, get_config_path, get_full_config
+from airgo.utils.traversal import get_project_config, config_path, get_full_config
 from airgo.exceptions import AirgoException
-from airgo.rendering import (
-    traverse_dags_folder,
-    render_argo_workflows,
-    render_step_function_workflows,
-)
+from airgo.rendering import traverse_dags_folder, render_workflows
 from airgo.dag import DAG
 from shutil import copy
 import configparser
@@ -62,7 +58,7 @@ def submit_workflow(workflow_data, parameters):
     with open(tf.name, "w") as temp:
         yaml.dump(
             yaml.load(
-                workflow_data.replace("${ImageTag}", f"sha-{get_commit_sha()}"),
+                workflow_data.replace("${IMAGE_TAG}", f"sha-{get_commit_sha()}"),
                 Loader=yaml.FullLoader,
             ),
             temp,
@@ -126,49 +122,12 @@ def main():
     is_flag=True,
     help="Whether to overwrite existing files. Defaults to False",
 )
-@click.option("--project-type", default="argo", help="Either argo or step-functions")
 @click.option(
-    "--docker-repo",
-    default="",
-    help="Repository for docker image.  Defaults to empty string.",
+    "--image-tag",
+    default="${IMAGE_TAG}",
+    help="Image tag to use in default container template.  Defaults to '${IMAGE_TAG}', which must be set later.",
 )
-@click.option(
-    "--aws-subnet-id",
-    default="",
-    help="Subnet ID to use for Step Functions.  Defaults to empty string.",
-)
-@click.option(
-    "--aws-security-group",
-    default="",
-    help="Security Group to use for Step Functions.  Defaults to empty string.",
-)
-@click.option(
-    "--aws-id",
-    default="",
-    help="AWS ID to use for Step Functions.  Defaults to empty string.",
-)
-@click.option(
-    "--aws-region",
-    default="",
-    help="AWS Region to use for Step Functions.  Defaults to empty string.",
-)
-@click.option(
-    "--aws-ecs-cluster-arn",
-    default="",
-    help="AWS ECS Cluster to use for Step Functions.  Defaults to empty string.",
-)
-def init(
-    project_name,
-    namespace,
-    overwrite,
-    project_type,
-    docker_repo,
-    aws_id,
-    aws_region,
-    aws_subnet_id,
-    aws_security_group,
-    aws_ecs_cluster_arn,
-):
+def init(project_name, namespace, overwrite, image_tag):
     """
     Inits airgo directory with init (with project_name specification) and templates,
     a dags folder with a simple hello_world dag, and a simple test for dag traversal.
@@ -179,113 +138,36 @@ def init(
     make_if_not(os.path.join(templates_dir, "configuration"))
     make_if_not(rendered_yamls_dir)
     make_if_not(os.path.join(rendered_yamls_dir, "manual_workflows"))
-    make_if_not(os.path.join(rendered_yamls_dir, "scheduled_workflows"))
+    make_if_not(os.path.join(rendered_yamls_dir, "backfill_workflows"))
     make_if_not(dags_dir)
     make_if_not(tests_dir)
-    if project_type == "argo":
-        make_if_not(os.path.join(rendered_yamls_dir, "backfill_workflows"))
-        with open(
-            os.path.join(script_dir, "templates", "argo_default_template.yaml.j2"), "r"
-        ) as f:
-            default_container = f.read()
-        if docker_repo:
-            with open(
-                os.path.join(
-                    airgo_dir,
-                    "templates",
-                    "containers",
-                    "default.yaml.j2",
-                ),
-                "w",
-            ) as f:
-                f.write(
-                    default_container.replace(
-                        "${SET IMAGE HERE}", f"{docker_repo}:${{ImageTag}}"
-                    )
-                )
-        copy_template(
-            "argo_workflow.yaml.j2",
-            os.path.join("airgo", "templates", "configuration"),
-            overwrite=overwrite,
-        )
-        copy_template(
-            "argo_cron_workflow.yaml.j2",
-            os.path.join("airgo", "templates", "configuration"),
-            overwrite=overwrite,
-        )
-    elif project_type == "step-functions":
-        make_if_not(os.path.join(rendered_yamls_dir, "containers"))
-        with open(
-            os.path.join(
-                script_dir,
-                "templates",
-                "step_functions_taskdefinition_template.yaml.j2",
-            ),
-            "r",
-        ) as f:
-            default_task = f.read()
-        with open(
-            os.path.join(
-                airgo_dir,
-                "templates",
-                "containers",
-                "default.yaml.j2",
-            ),
-            "w",
-        ) as f:
-            if docker_repo:
-                default_task = default_task.replace(
-                    "${SET IMAGE HERE}", f"{docker_repo}:${{ImageTag}}"
-                )
-
-            f.write(default_task)
-        copy_template(
-            "step_functions_task_template.yaml.j2",
-            os.path.join("airgo", "templates", "configuration"),
-            overwrite=overwrite,
-        )
-        copy_template(
-            "step_functions_resources_template.yaml.j2",
-            os.path.join("airgo", "templates", "configuration"),
-            overwrite=overwrite,
-        )
-        copy_template(
-            "step_functions_stepfunction_template.yaml.j2",
-            os.path.join("airgo", "templates", "configuration"),
-            overwrite=overwrite,
-        )
-    else:
-        raise AirgoException(
-            f"Project type '{project_type}' not recognized.  Must be either 'argo' or 'step-functions'"
-        )
+    with open(os.path.join(script_dir, "templates", "default_template.j2"), "r") as f:
+        default_container = f.read()
+    with open(
+        os.path.join(airgo_dir, "templates", "containers", "default_template.j2"), "w"
+    ) as f:
+        f.write(default_container.replace("${IMAGE_TAG}", image_tag))
+    copy_template(
+        "workflow.j2",
+        os.path.join("airgo", "templates", "configuration"),
+        overwrite=overwrite,
+    )
+    copy_template(
+        "cron_workflow.j2",
+        os.path.join("airgo", "templates", "configuration"),
+        overwrite=overwrite,
+    )
     copy_template("hello_world.py", "dags", overwrite=overwrite)
     copy_template(
         "dag_traversal.py", "tests", "test_dag_traversal.py", overwrite=overwrite
     )
     copy_template("Dockerfile", None, overwrite=overwrite)
-    if os.path.exists(get_config_path()):
+    if os.path.exists(config_path):
         config = get_full_config()
     else:
         config = configparser.ConfigParser()
-    if project_type == "argo":
-        config["airgo"] = {
-            "project_name": project_name,
-            "project_type": project_type,
-            "namespace": namespace,
-            "docker_repo": docker_repo,
-        }
-    elif project_type == "step-functions":
-        config["airgo"] = {
-            "project_name": project_name,
-            "project_type": project_type,
-            "docker_repo": docker_repo,
-            "aws_id": aws_id,
-            "aws_region": aws_region,
-            "aws_security_group": aws_security_group,
-            "aws_subnet_id": aws_subnet_id,
-            "aws_ecs_cluster_arn": aws_ecs_cluster_arn,
-        }
-    with open(get_config_path(), "w") as configfile:
+    config["airgo"] = {"project_name": project_name, "namespace": namespace}
+    with open(config_path, "w") as configfile:
         config.write(configfile)
 
 
@@ -301,16 +183,15 @@ def render(hash_check):
     airgo rendered_yamls directory.
     """
     project_config = get_project_config()
+    project_name = project_config["project_name"]
+    namespace = project_config["namespace"]
     dags = traverse_dags_folder(dags_dir)
     if not dags:
         raise AirgoException("Your dags folder has no dag instances specified...")
 
     if hash_check:
         old_sha = gen_sha()
-    if project_config["project_type"] == "argo":
-        render_argo_workflows(project_config, dags, rendered_yamls_dir)
-    else:
-        render_step_function_workflows(project_config, dags, rendered_yamls_dir)
+    render_workflows(project_name, namespace, dags, rendered_yamls_dir)
     if hash_check and old_sha != gen_sha():
         raise Exception(
             "Hashes of rendered_yaml directory before and after rendering do not match!"

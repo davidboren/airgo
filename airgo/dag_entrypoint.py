@@ -6,6 +6,7 @@ dags_dir = os.getenv("DAGS_DIRECTORY", os.path.join(working_dir, "dags"))
 tags = {k: os.getenv(k) for k in ["DAG_ID", "TASK_ID"]}
 
 
+
 def create_context(dag):
     context = dag.default_context
     context.update(**tags)
