@@ -86,6 +86,32 @@ class RuntimeParallelizeOperator(BaseOperator):
         )
         return template
 
+    def to_sf_dict(self):
+        core_sf_dict = super().to_sf_dict()
+        next_state = core_sf_dict.pop("Next")
+        if next_state is None:
+            core_sf_dict.pop("End")
+            next_or_end = {"End": True}
+        else:
+            next_or_end = {"Next": next_state}
+            core_sf_dict["Parameters"]["Overrides"]["ContainerOverrides"][0][
+                "Environment"
+            ].append({"Name": "ELEMENT", "Value": "$.element"})
+        return {
+            "Type": "Map",
+            "MaxConcurrency": self.dag.max_active_runs,
+            "InputPath": "$",
+            "ItemsPath": f"$.artifacts.{self.property_name}",
+            "Parameters": {
+                "element.$": "$$.Map.Item.Value",
+            },
+            "Iterator": {
+                "StartAt": self.task_id,
+                "States": {self.task_id: {**core_sf_dict, "End": True}},
+            },
+            **next_or_end,
+        }
+
     def to_dict(self):
         dict_ = super().to_dict()
         dict_["withParam"] = (
