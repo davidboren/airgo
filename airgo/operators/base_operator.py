@@ -522,6 +522,8 @@ class BaseOperator:
         container_override = template["Parameters"]["Overrides"]["ContainerOverrides"][
             0
         ]
+        container_override["Cpu"] = int(self.limits_cpu)
+        container_override["Memory"] = int(self.limits_memory)
         if self.dag.state_machine_default_inputs:
             container_override["Environment"].extend(
                 [
