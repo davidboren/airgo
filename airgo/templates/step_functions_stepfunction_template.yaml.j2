@@ -90,8 +90,9 @@ Resources:
           InputTransformer:
             InputPathsMap:
               "time": "$.time"
-            InputTemplate: |
-              {
-                "Description": "Execution Failure Notice: The {{PROJECT_NAME}}-{{DAG_NAME}} StateMachine has failed",
-                "Execution Time": <time> 
-              }
+            InputTemplate: 
+              Fn::Sub: |
+                {
+                  "Description": "Execution Failure Notice: The {{PROJECT_NAME}}-{{DAG_NAME}} StateMachine in Environment ${Environment} has failed",
+                  "Execution Time": <time> 
+                }
